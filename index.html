@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>miniACCESS CONTROL - Simulador</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="title">miniACCESS <span>CONTROL</span></div>
+        <div class="company">Stellantis</div>
+    </header>
+
+    <video id="video-origen" autoplay muted playsinline style="display: block; width: 400px;"></video>
+
+    <main>
+        <section class="camaras">
+            <canvas class="camara" id="camara-patente" width="200" height="150"></canvas>
+            <canvas class="camara" id="camara-conductor" width="300" height="150"></canvas>
+            <canvas class="camara" id="camara-acompanante" width="300" height="150"></canvas>
+        </section>
+
+        <section class="datos">
+            <p>Casilla de Guardia: <strong>3</strong></p>
+            <p>Guardia: <strong>Lucini, Gabriel Alejandro</strong></p>
+            <p>Legajo: <strong>98023</strong></p>
+            <p>Turno: <strong>Mañana</strong></p>
+
+            <hr>
+
+            <p>Patente: <span id="patente"></span></p>
+
+            <hr>
+
+            <div class="foto-conductor" id="foto-conductor">foto conductor</div>
+
+            <p>Conductor: <span id="conductor"></span></p>
+            <p>Empresa: <span id="empresa"></span></p>
+            <p>Legajo: <span id="legajo"></span></p>
+            <p>Demás datos: <span id="demas-datos"></span></p>
+
+            <div id="cargar-datos" class="invisible-boton">[ Cargar Datos ]</div>
+        </section>
+    </main>
+
+    <button id="compartir-pantalla">Compartir Pantalla</button>
+
+    <video id="video-origen" autoplay muted playsinline style="display: none;"></video>
+
+    <script src="script.js"></script>
+</body>
+</html>
