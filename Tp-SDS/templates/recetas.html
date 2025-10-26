@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Todas las Recetas - Abuela Cripto</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>📖 Todas las Recetas</h1>
+        
+        {% for receta in recetas %}
+            <div class="receta-card {% if receta[4] == 1 %}secret-recipe{% endif %}">
+                <h3>{{ receta[1] }}</h3>
+                <p><strong>Ingredientes:</strong> {{ receta[2] }}</p>
+                <p><strong>Instrucciones:</strong> {{ receta[3] }}</p>
+                {% if receta[4] == 1 %}
+                    <p class="secret">🔒 RECETA SECRETA FAMILIAR - NO COMPARTIR</p>
+                {% endif %}
+            </div>
+        {% endfor %}
+        
+        <p><a href="{{ url_for('index') }}">← Volver al inicio</a></p>
+    </div>
+</body>
+</html>

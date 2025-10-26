@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Panel Admin - Abuela Cripto</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>⚙️ Panel de Administración</h1>
+        
+        <div class="admin-panel">
+            <div class="admin-section">
+                <h3>🔧 Configuración del Sistema</h3>
+                <p>Bienvenido al panel de administración. Desde aquí puedes gestionar todos los aspectos del sistema.</p>
+                
+                <div class="admin-actions">
+                    <button onclick="alert('Función no implementada')">Gestionar Usuarios</button>
+                    <button onclick="alert('Función no implementada')">Ver Logs del Sistema</button>
+                    <button onclick="alert('Función no implementada')">Configuración Avanzada</button>
+                </div>
+            </div>
+            
+            <div class="admin-section">
+                <h3>📊 Estadísticas</h3>
+                <ul>
+                    <li>Usuarios registrados: 15</li>
+                    <li>Recetas en el sistema: 8</li>
+                    <li>Empleados activos: 3</li>
+                </ul>
+            </div>
+            
+            <div class="admin-section">
+                <h3>🎯 Flag del Desafío</h3>
+                <div class="flag-section">
+                    <p>¡Felicidades! Has llegado al panel de administración.</p>
+                    <p>Sin embargo, el Chef Obscuro es más astuto... el flag final no está aquí.</p>
+                    <p class="hint">💡 Pista: El Chef Obscuro ocultó el flag en el lugar más inesperado del sistema.</p>
+                    <p class="hint">💡 Pista: ¿Has probado a ejecutar comandos en el sistema?</p>
+                </div>
+            </div>
+        </div>
+        
+        <nav>
+            <a href="{{ url_for('index') }}">🏠 Inicio</a>
+            <a href="{{ url_for('personalizar_etiquetas') }}">🏷️ Personalizar Etiquetas</a>
+            <a href="{{ url_for('logout') }}">🚪 Cerrar Sesión</a>
+        </nav>
+        
+        <!-- VULNERABILIDAD: Pista final -->
+        <div style="opacity: 0.2; font-size: 8px; margin-top: 20px;">
+            El Chef Obscuro siempre decía: "Los verdaderos secretos se ejecutan, no se leen"
+        </div>
+    </div>
+    
+    <script>
+        // Pequeña funcionalidad para hacerlo más interactivo
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("Panel de administración cargado. ¿Buscas el flag? No está aquí...");
+        });
+    </script>
+</body>
+</html>

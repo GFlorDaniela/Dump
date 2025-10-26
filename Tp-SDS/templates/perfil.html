@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Perfil - {{ usuario[1] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>👤 Perfil de Usuario</h1>
+        
+        <div class="profile">
+            <h2>{{ usuario[1] }} 
+                <span class="role-badge role-{{ usuario[3] }}">{{ usuario[3] }}</span>
+            </h2>
+            
+            <div class="profile-info">
+                <p><strong>📧 Email:</strong> {{ usuario[4] }}</p>
+                <p><strong>🔑 Rol:</strong> {{ usuario[3] }}</p>
+                <p><strong>🆔 ID de Usuario:</strong> {{ usuario[0] }}</p>
+            </div>
+        </div>
+
+        <!-- VULNERABILIDAD: Information Disclosure -->
+        <div class="hint">
+            <h3>💡 Pista de Seguridad</h3>
+            <p>¿Notas algo extraño? Puedes ver el perfil de cualquier usuario cambiando el parámetro <code>user_id</code> en la URL.</p>
+            <p>Prueba con: <code>/perfil?user_id=2</code> o <code>/perfil?user_id=3</code></p>
+        </div>
+
+        <nav>
+            <a href="{{ url_for('dashboard') }}">🏠 Dashboard</a>
+            <a href="{{ url_for('logs_sistema') }}">📊 Logs del Sistema</a>
+        </nav>
+    </div>
+</body>
+</html>

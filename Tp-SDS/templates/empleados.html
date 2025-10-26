@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Empleados - Abuela Cripto</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>👥 Nuestro Equipo</h1>
+        
+        <div class="empleados-list">
+            <div class="empleado-card">
+                <h3>Juan Pérez</h3>
+                <p>Ayudante de Cocina</p>
+                <a href="{{ url_for('perfil_empleado', id=1) }}">Ver Perfil</a>
+            </div>
+            
+            <div class="empleado-card">
+                <h3>María García</h3>
+                <p>Administradora</p>
+                <a href="{{ url_for('perfil_empleado', id=2) }}">Ver Perfil</a>
+            </div>
+            
+            <div class="empleado-card">
+                <h3>Chef Obscuro</h3>
+                <p>Consultor Externo</p>
+                <a href="{{ url_for('perfil_empleado', id=3) }}">Ver Perfil</a>
+            </div>
+        </div>
+        
+        <p><a href="{{ url_for('index') }}">← Volver al inicio</a></p>
+        
+        <!-- VULNERABILIDAD: Pista para IDOR -->
+        <div style="opacity: 0.3; font-size: 10px;">
+            ¿Qué pasa si cambio el ID en la URL?
+        </div>
+    </div>
+</body>
+</html>

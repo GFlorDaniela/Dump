@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard - Abuela Cripto</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>👵 ¡Bienvenida, {{ username }}!</h1>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <nav>
+            <a href="{{ url_for('buscar_recetas') }}">🔍 Buscar Recetas</a>
+            <a href="{{ url_for('perfil') }}">👤 Mi Perfil</a>
+            <a href="{{ url_for('logs_sistema') }}">📊 Logs del Sistema</a>
+            <a href="{{ url_for('logout') }}">🚪 Cerrar Sesión</a>
+        </nav>
+
+        <div class="recetas-section">
+            <h2>🍽️ Mis Recetas Disponibles</h2>
+            {% for receta in recetas %}
+                <div class="receta-card">
+                    <h3>{{ receta[1] }}</h3>
+                    <p><strong>Categoría:</strong> {{ receta[6] }}</p>
+                    <a href="{{ url_for('ver_receta', receta_id=receta[0]) }}">Ver Receta Completa</a>
+                </div>
+            {% endfor %}
+        </div>
+
+        {% if bloqueadas %}
+        <div class="bloqueadas-section">
+            <h2>🔒 Recetas Bloqueadas por el Chef Obscuro</h2>
+            <p>¡El Chef Obscuro ha bloqueado estas recetas familiares!</p>
+            {% for receta in bloqueadas %}
+                <div class="receta-card bloqueada">
+                    <h3>{{ receta[1] }}</h3>
+                    <p>🔐 BLOQUEADA - Se requiere contraseña</p>
+                    <a href="{{ url_for('ver_receta', receta_id=receta[0]) }}">Intentar Desbloquear</a>
+                </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if session.get('role') == 'admin' %}
+        <div class="admin-info">
+            <p>⚙️ <strong>Modo Administrador Activado</strong></p>
+            <p>Puedes acceder a todas las funciones del sistema.</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

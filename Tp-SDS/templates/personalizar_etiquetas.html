@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Personalizar Etiquetas - Abuela Cripto</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🏷️ Personalizar Etiquetas de Recetas</h1>
+        
+        <form method="POST">
+            <textarea name="etiqueta" placeholder="Escribe tu etiqueta personalizada..." rows="4" cols="50" required></textarea>
+            <br>
+            <button type="submit">Crear Etiqueta</button>
+        </form>
+        
+        <div class="hint">
+            <h3>💡 Sistema de Plantillas:</h3>
+            <p>Puedes usar {{ variable }} para contenido dinámico</p>
+            <p>Ejemplo: "Receta de {{ nombre }} - Por {{ autor }}"</p>
+        </div>
+        
+        <p><a href="{{ url_for('index') }}">← Volver al inicio</a></p>
+        
+        <!-- VULNERABILIDAD: Pista para SSTI -->
+        <div style="opacity: 0.3; font-size: 10px;">
+            El sistema procesa plantillas... ¿qué más puede procesar?
+        </div>
+    </div>
+</body>
+</html>

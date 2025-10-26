@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Desbloquear Receta - Abuela Cripto</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🔓 Desbloquear Receta Secreta</h1>
+        
+        <div class="receta-bloqueada">
+            <h2>{{ receta[1] }}</h2>
+            <p>El Chef Obscuro ha bloqueado esta receta familiar con una contraseña.</p>
+            <p class="hint">💡 Pista: Revisa los logs del sistema o busca información en la base de datos.</p>
+        </div>
+
+        <form method="POST">
+            <input type="password" name="password" placeholder="Ingresa la contraseña de desbloqueo" required>
+            <button type="submit">🔓 Desbloquear Receta</button>
+        </form>
+
+        <div class="hint">
+            <h3>💡 Pistas para encontrar la contraseña:</h3>
+            <ul>
+                <li>Revisa los <a href="{{ url_for('logs_sistema') }}">logs del sistema</a></li>
+                <li>Busca en la base de datos usando búsquedas avanzadas</li>
+                <li>Examina todos los perfiles de usuario</li>
+            </ul>
+        </div>
+
+        <p><a href="{{ url_for('dashboard') }}">← Volver al Dashboard</a></p>
+    </div>
+</body>
+</html>
