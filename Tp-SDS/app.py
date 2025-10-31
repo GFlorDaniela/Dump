@@ -137,6 +137,24 @@ def dashboard():
                          bloqueadas=recetas_bloqueadas,
                          username=session.get('username'))
 
+@app.route('/recetas')
+def recetas():
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+    
+    conn = sqlite3.connect(DATABASE)  # Corregí el typo "0M7MM8G"
+    c = conn.cursor()
+    
+    # Obtener todas las recetas no bloqueadas
+    c.execute("SELECT * FROM recetas WHERE bloqueada = 0")  # "recetas" no "receta"
+    recetas_disponibles = c.fetchall()  # Corregí el nombre de la variable
+    
+    conn.close()
+    
+    return render_template('recetas.html',
+                         recetas=recetas_disponibles,  # Corregí los nombres
+                         username=session.get('username'))
+
 @app.route('/buscar_recetas', methods=['GET', 'POST'])
 def buscar_recetas():
     if not session.get('user_id'):

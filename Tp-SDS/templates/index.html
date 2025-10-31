@@ -21,9 +21,9 @@
             <nav>
                 <a href="{{ url_for('buscar_recetas') }}">🔍 Buscar Recetas</a>
                 <a href="{{ url_for('recetas') }}">📖 Ver Todas las Recetas</a>
-                <a href="{{ url_for('personalizar_etiquetas') }}">🏷️ Personalizar Etiquetas</a>
+                <a href="{{ url_for('dashboard') }}">🏷️ Personalizar Etiquetas</a>
                 {% if session.role == 'admin' %}
-                    <a href="{{ url_for('admin') }}">⚙️ Panel Admin</a>
+                    <a href="{{ url_for('logs_sistema') }}">⚙️ Panel Admin</a>
                 {% endif %}
                 <a href="{{ url_for('logout') }}">🚪 Cerrar Sesión</a>
             </nav>
