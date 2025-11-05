@@ -1,13 +1,12 @@
+// components/Login.jsx - Versión actualizada
 import React, { useState } from "react";
 import "../css/form.css";
 
-const Login = ({ onLogin }) => {
+const Login = ({ onLogin, error, loading }) => {
   const [formData, setFormData] = useState({
     username: "",
     password: ""
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   const handleChange = (e) => {
     setFormData({
@@ -18,33 +17,7 @@ const Login = ({ onLogin }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    try {
-      // Simular autenticación con vulnerabilidades
-      // VULNERABILIDAD: SQL Injection posible
-      const users = [
-        { id: 1, username: "abuela", password: "abuela123", role: "user", email: "abuela@recetas.com" },
-        { id: 2, username: "admin", password: "ChefObscuro123!", role: "admin", email: "admin@recetas.com" },
-        { id: 3, username: "chef_obscuro", password: "DarkChef2024!", role: "admin", email: "chef@obscuro.com" }
-      ];
-
-      // Vulnerabilidad SQL Injection simulada
-      const user = users.find(u => 
-        u.username === formData.username && u.password === formData.password
-      );
-
-      if (user) {
-        onLogin(user);
-      } else {
-        setError("Credenciales incorrectas");
-      }
-    } catch (err) {
-      setError("Error de conexión");
-    } finally {
-      setLoading(false);
-    }
+    await onLogin(formData.username, formData.password);
   };
 
   return (
@@ -100,7 +73,7 @@ const Login = ({ onLogin }) => {
         </form>
 
         <div className="login-hints">
-          <h3>💡 Credenciales de Prueba:</h3>
+          <h3>💡 Credenciales de Prueba (Backend Real):</h3>
           <div className="credentials-grid">
             <div className="credential-card">
               <strong>Usuario:</strong> abuela<br/>
@@ -112,12 +85,17 @@ const Login = ({ onLogin }) => {
               <strong>Contraseña:</strong> ChefObscuro123!<br/>
               <em>Rol: Administrador</em>
             </div>
+            <div className="credential-card">
+              <strong>Usuario:</strong> chef_obscuro<br/>
+              <strong>Contraseña:</strong> DarkChef2024!<br/>
+              <em>Rol: Administrador</em>
+            </div>
           </div>
         </div>
 
         {/* VULNERABILIDAD: Pista oculta para SQL Injection */}
         <div className="vulnerability-hint">
-          <p><small>💡 Pista de seguridad: Intenta usar <code>' OR '1'='1' --</code> en usuario</small></p>
+          <p><small>💡 Pista de seguridad: Intenta usar <code>' OR '1'='1' --</code> en usuario o contraseña</small></p>
         </div>
       </div>
     </div>

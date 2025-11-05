@@ -9,7 +9,12 @@ import secrets
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
-CORS(app, supports_credentials=True)
+
+# SOLO ESTA CONFIGURACIÓN CORS - ELIMINA CUALQUIER OTRA
+CORS(app, 
+     supports_credentials=True,
+     origins=["http://localhost:5173"],
+     methods=["GET", "POST", "PUT", "DELETE"])
 
 DATABASE = 'data/database.db'
 
@@ -76,13 +81,13 @@ def init_db():
         
         # Recetas
         recetas_data = [
-            (1, 'Sopa de Tomate Clásica', 'tomates, cebolla, ajo, albahaca', 'Cocinar a fuego lento por 45 minutos', 0, NULL, 'sopas', 1, '2024-01-01'),
-            (2, 'Torta de Chocolate Familiar', 'harina, huevos, chocolate, azúcar', 'Mezclar y hornear a 180° por 30 min', 0, NULL, 'postres', 1, '2024-01-02'),
+            (1, 'Sopa de Tomate Clásica', 'tomates, cebolla, ajo, albahaca', 'Cocinar a fuego lento por 45 minutos', 0, None, 'sopas', 1, '2024-01-01'),
+            (2, 'Torta de Chocolate Familiar', 'harina, huevos, chocolate, azúcar', 'Mezclar y hornear a 180° por 30 min', 0, None, 'postres', 1, '2024-01-02'),
             (3, 'RECETA SECRETA: Salsa Ancestral', 'INGREDIENTES CLASIFICADOS', 'INSTRUCCIONES SECRETAS - BLOQUEADA POR CHEF OBSCURO', 1, 'S4uc3S3cr3t4!', 'salsas', 1, '2024-01-03'),
-            (4, 'Guiso de la Abuela', 'carne, papas, zanahorias, cebolla', 'Guisar por 2 horas a fuego medio', 0, NULL, 'guisos', 1, '2024-01-04'),
+            (4, 'Guiso de la Abuela', 'carne, papas, zanahorias, cebolla', 'Guisar por 2 horas a fuego medio', 0, None, 'guisos', 1, '2024-01-04'),
             (5, 'RECETA ULTRA SECRETA: Postre Familiar', 'INGREDIENTES ULTRASECRETOS', 'RECETA BLOQUEADA - SOLO PARA FAMILIA', 1, 'P0str3F4m1l14r!', 'postres', 1, '2024-01-05'),
-            (6, 'Ensalada de la Casa', 'lechuga, tomate, cebolla, aceite', 'Mezclar todos los ingredientes', 0, NULL, 'ensaladas', 4, '2024-01-06'),
-            (7, 'Pasta Carbonara', 'pasta, huevos, panceta, queso', 'Cocinar la pasta y mezclar con la salsa', 0, NULL, 'pastas', 5, '2024-01-07')
+            (6, 'Ensalada de la Casa', 'lechuga, tomate, cebolla, aceite', 'Mezclar todos los ingredientes', 0, None, 'ensaladas', 4, '2024-01-06'),
+            (7, 'Pasta Carbonara', 'pasta, huevos, panceta, queso', 'Cocinar la pasta y mezclar con la salsa', 0, None, 'pastas', 5, '2024-01-07')
         ]
         
         for receta in recetas_data:
