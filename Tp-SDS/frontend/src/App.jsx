@@ -1,4 +1,4 @@
-// App.jsx
+// App.jsx - VERSIÓN CORREGIDA
 import React, { useState, useEffect } from "react";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
@@ -6,6 +6,9 @@ import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
 import Recetas from "./components/Recetas";
 import Perfil from "./components/Perfil";
+import GameRegistration from "./components/GameRegistration";
+import FlagSubmission from "./components/FlagSubmission";
+import Leaderboard from "./components/Leaderboard";
 import ApiService from "./services/api";
 import "./App.css";
 
@@ -16,10 +19,20 @@ const App = () => {
   const [recetasBloqueadas, setRecetasBloqueadas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [gamePlayer, setGamePlayer] = useState(null);
+  const [showRegistration, setShowRegistration] = useState(false);
+  const [showFlagSubmission, setShowFlagSubmission] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   // Verificar sesión al cargar la aplicación
   useEffect(() => {
     checkAuth();
+    
+    // Verificar si hay un jugador guardado en localStorage
+    const savedPlayer = localStorage.getItem('gamePlayer');
+    if (savedPlayer) {
+      setGamePlayer(JSON.parse(savedPlayer));
+    }
   }, []);
 
   const checkAuth = async () => {
@@ -33,7 +46,6 @@ const App = () => {
         setCurrentView("dashboard");
       }
     } catch (error) {
-      // No autenticado, mantener en login
       console.log("Usuario no autenticado");
     } finally {
       setLoading(false);
@@ -56,6 +68,16 @@ const App = () => {
         setRecetasBloqueadas(dashboardData.bloqueadas || []);
         
         setCurrentView("dashboard");
+        
+        // Mostrar registro de juego si no hay jugador registrado
+        if (!gamePlayer && !localStorage.getItem('gamePlayer')) {
+          setShowRegistration(true);
+        }
+        
+        // Si hay flag en la respuesta, mostrarla
+        if (result.flag) {
+          alert(`¡Vulnerabilidad encontrada! Flag: ${result.flag}`);
+        }
       } else {
         setError(result.message || "Credenciales incorrectas");
       }
@@ -95,33 +117,55 @@ const App = () => {
     setCurrentView("perfil");
   };
 
-  const handleDesbloquearReceta = async (recetaId, password) => {
+  // Función para registrar jugador
+  const handleGameRegister = async (nickname, email) => {
     try {
-      const result = await ApiService.desbloquearReceta(recetaId, password);
-      if (result.success) {
-        // Actualizar la lista de recetas
-        const dashboardData = await ApiService.getDashboard();
-        setRecetas(dashboardData.recetas || []);
-        setRecetasBloqueadas(dashboardData.bloqueadas || []);
-        
-        // Si hay flag, mostrarlo
-        if (result.flag) {
-          alert(`¡FELICIDADES! Flag encontrado: ${result.flag}`);
-        }
-        
-        return { success: true, receta: result.receta, flag: result.flag };
+      const response = await fetch('http://localhost:5000/api/game/register', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ nickname, email })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setGamePlayer(data.player);
+        setShowRegistration(false);
+        localStorage.setItem('gamePlayer', JSON.stringify(data.player));
       } else {
-        return { success: false, message: result.message };
+        setError(data.message);
       }
     } catch (error) {
-      return { success: false, message: error.message };
+      setError('Error al registrar jugador');
     }
   };
+
+  // Función para enviar flag
+  const handleSubmitFlag = async (playerId, flagHash) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/game/submit-flag', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ player_id: playerId, flag_hash: flagHash })
+      });
+      
+      return await response.json();
+    } catch (error) {
+      return { success: false, message: 'Error al enviar flag' };
+    }
+  };
+
+  // === FUNCIONES CORREGIDAS PARA EL DASHBOARD ===
 
   const handleBuscarRecetas = async (busqueda) => {
     try {
       const result = await ApiService.buscarRecetas(busqueda);
-      if (result.success) {
+      // Retornar el array de recetas, no el objeto completo
+      if (result.success && Array.isArray(result.recetas)) {
         return result.recetas;
       }
       return [];
@@ -131,23 +175,11 @@ const App = () => {
     }
   };
 
-  const handleGetPerfil = async (userId = null) => {
-    try {
-      const result = await ApiService.getPerfil(userId);
-      if (result.success) {
-        return result.usuario;
-      }
-      return null;
-    } catch (error) {
-      console.error("Error al obtener perfil:", error);
-      return null;
-    }
-  };
-
   const handleGetLogs = async () => {
     try {
       const result = await ApiService.getLogs();
-      if (result.success) {
+      // Retornar el array de logs, no el objeto completo
+      if (result.success && Array.isArray(result.logs)) {
         return result.logs;
       }
       return [];
@@ -178,18 +210,18 @@ const App = () => {
             recetasBloqueadas={recetasBloqueadas}
             onViewRecetas={handleViewRecetas}
             onViewPerfil={handleViewPerfil}
-            onBuscarRecetas={handleBuscarRecetas}
-            onGetLogs={handleGetLogs}
+            onBuscarRecetas={handleBuscarRecetas}  // ← Usar la función corregida
+            onGetLogs={handleGetLogs}              // ← Usar la función corregida
+            gamePlayer={gamePlayer}
+            onShowFlagSubmission={() => setShowFlagSubmission(true)}
+            onShowLeaderboard={() => setShowLeaderboard(true)}
           />
         );
       case "recetas":
         return (
           <Recetas 
             recetas={recetas}
-            recetasBloqueadas={recetasBloqueadas}
             onBack={() => setCurrentView("dashboard")}
-            onDesbloquearReceta={handleDesbloquearReceta}
-            onGetReceta={ApiService.getReceta}
           />
         );
       case "perfil":
@@ -197,7 +229,6 @@ const App = () => {
           <Perfil 
             user={user}
             onBack={() => setCurrentView("dashboard")}
-            onGetPerfil={handleGetPerfil}
           />
         );
       default:
@@ -211,7 +242,6 @@ const App = () => {
         user={user} 
         onLogout={handleLogout} 
         currentView={currentView}
-        onNavigate={setCurrentView}
       />
       <main className="main-content">
         {error && (
@@ -221,6 +251,29 @@ const App = () => {
           </div>
         )}
         {renderView()}
+        
+        {/* Componentes de gamificación */}
+        {showRegistration && (
+          <GameRegistration 
+            onRegister={handleGameRegister}
+            onCancel={() => setShowRegistration(false)}
+          />
+        )}
+
+        {showFlagSubmission && gamePlayer && (
+          <FlagSubmission 
+            player={gamePlayer}
+            onSubmitFlag={handleSubmitFlag}
+            onClose={() => setShowFlagSubmission(false)}
+          />
+        )}
+
+        {showLeaderboard && (
+          <Leaderboard 
+            currentPlayer={gamePlayer}
+            onClose={() => setShowLeaderboard(false)}
+          />
+        )}
       </main>
       <Footer />
     </div>

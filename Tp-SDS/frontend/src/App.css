@@ -912,6 +912,7 @@ header {
   .recetas-header h1 {
     font-size: 2rem;
   }
+}
 
   .recipe-card {
     padding: 1rem;
@@ -920,4 +921,108 @@ header {
   .security-education {
     padding: 1rem;
   }
+
+  /* Estilos para la gamificación */
+.game-controls-panel {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  color: white;
+}
+
+.player-info-card {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 15px;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.player-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.stat {
+  text-align: center;
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.8em;
+  opacity: 0.8;
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
+.game-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.btn-small {
+  padding: 5px 10px;
+  font-size: 0.8em;
+}
+
+.game-invite {
+  text-align: center;
+  padding: 10px;
+}
+
+.flag-indicator {
+  background: #ff6b6b;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  margin-left: 10px;
+}
+
+.flag-alert {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  padding: 10px;
+  border-radius: 5px;
+  margin-top: 10px;
+}
+
+.flag-hint {
+  margin-top: 10px;
+  padding: 5px;
+  background: #f8f9fa;
+  border-radius: 3px;
+}
+
+.vulnerability-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.vuln-item {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.game-instructions {
+  background: #e3f2fd;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 15px;
+}
+
+.game-instructions ul {
+  margin: 10px 0 0 0;
+  padding-left: 20px;
 }
