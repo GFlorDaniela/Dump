@@ -5,9 +5,7 @@ const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth debe usarse dentro de AuthProvider');
-  }
+  if (!context) throw new Error('useAuth debe usarse dentro de AuthProvider');
   return context;
 };
 
@@ -16,90 +14,98 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // ---------- Verificar sesión al iniciar ----------
   useEffect(() => {
     checkAuth();
   }, []);
 
   const checkAuth = async () => {
+    setLoading(true);
     try {
-      const dashboardData = await ApiService.getDashboard();
-      if (dashboardData.success) {
-        setUser(dashboardData.user);
+      const data = await ApiService.checkSession();
+      if (data.success && data.usuario) {
+        setUser(data.usuario);
+      } else {
+        setUser(null);
       }
-    } catch (error) {
-      console.log('Usuario no autenticado o error de conexión:', error.message);
-      // No establecer usuario si hay error de autenticación
+    } catch (err) {
+      console.error('Error al verificar sesión:', err);
       setUser(null);
     } finally {
       setLoading(false);
     }
   };
 
+  // ---------- Login ----------
   const login = async (username, password) => {
+    setLoading(true);
+    setError('');
     try {
-      setLoading(true);
-      setError('');
-      const result = await ApiService.login({ username, password });
-      if (result.success) {
-        setUser(result.user);
-        return { success: true, data: result };
+      const data = await ApiService.login({ username, password });
+      if (data.success && data.usuario) {
+        setUser(data.usuario);
+        return { success: true };
       } else {
-        setError(result.message);
-        return { success: false, error: result.message };
+        setError(data.message || 'Usuario o contraseña incorrectos');
+        return { success: false };
       }
-    } catch (error) {
-      setError(error.message);
-      return { success: false, error: error.message };
+    } catch (err) {
+      console.error('Error en login:', err);
+      setError(err.message || 'Error al iniciar sesión');
+      return { success: false };
     } finally {
       setLoading(false);
     }
   };
 
+  // ---------- Logout ----------
   const logout = async () => {
     try {
       await ApiService.logout();
-    } catch (error) {
-      console.error('Error al cerrar sesión:', error);
+    } catch (err) {
+      console.error('Error en logout:', err);
     } finally {
       setUser(null);
-      setError('');
     }
   };
 
-  // ✅ NUEVO MÉTODO REGISTER
+  // ---------- Registro ----------
   const register = async (userData) => {
+    setLoading(true);
+    setError('');
     try {
-      setLoading(true);
-      setError('');
-      const result = await ApiService.registerPlayer(userData);
-      if (result.success) {
-        // Opcional: hacer login automático después del registro
-        // setUser(result.player);
-        return { success: true, data: result };
-      } else {
-        setError(result.message);
-        return { success: false, error: result.message };
+      const data = await ApiService.registerPlayer(userData);
+      if (data.success && data.usuario) {
+        setUser(data.usuario);
       }
-    } catch (error) {
-      setError(error.message);
-      return { success: false, error: error.message };
+      return data;
+    } catch (err) {
+      console.error('Error en registro:', err);
+      return { success: false, message: err.message || 'Error al registrar usuario' };
     } finally {
       setLoading(false);
     }
   };
 
-  const value = {
-    user,
-    loading,
-    error,
-    login,
-    logout,
-    register, // ✅ AGREGADO
-    setError
+  // ---------- Actualizar usuario manualmente (opcional) ----------
+  const updateUser = (newData) => {
+    setUser((prev) => ({ ...prev, ...newData }));
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        error,
+        login,
+        logout,
+        register,
+        setError,
+        updateUser,
+        checkAuth,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

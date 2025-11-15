@@ -19,36 +19,19 @@ export const GameProvider = ({ children }) => {
 
   useEffect(() => {
     const savedPlayer = localStorage.getItem('gamePlayer');
-    if (savedPlayer) {
-      setGamePlayer(JSON.parse(savedPlayer));
-    }
+    if (savedPlayer) setGamePlayer(JSON.parse(savedPlayer));
     loadVulnerabilities();
   }, []);
 
   const loadVulnerabilities = async () => {
-  try {
-    const data = await ApiService.getVulnerabilities();
-
-    // Si el backend NO tiene el endpoint, evitar romper la sesión
-    if (!data || data.status === 404) {
-      console.warn("⚠️ Endpoint /game/vulnerabilities no existe en el backend");
-      return;
+    try {
+      const data = await ApiService.getVulnerabilities();
+      if (!data || data.status === 404) return;
+      if (data.success) setVulnerabilities(data.vulnerabilities);
+    } catch (error) {
+      if (error.status !== 404) console.error('Error loading vulnerabilities:', error);
     }
-
-    if (data.success) {
-      setVulnerabilities(data.vulnerabilities);
-    }
-  } catch (error) {
-    // Importante: NO tratar el 404 como error fatal
-    if (error.status === 404) {
-      console.warn("⚠️ El backend devolvió 404 (endpoint no implementado). Se ignora.");
-      return;
-    }
-
-    console.error('Error loading vulnerabilities:', error);
-  }
-};
-
+  };
 
   const registerPlayer = async (playerData) => {
     try {
@@ -64,69 +47,60 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  // En GameContext.jsx, actualiza la función submitFlag:
-
   const submitFlag = async (flagHash) => {
-      if (!gamePlayer) return { success: false, error: 'Jugador no registrado' };
-      
-      try {
-          const result = await ApiService.submitFlag(flagHash);
-          
-          if (result.success) {
-              // Update player score
-              setGamePlayer(prev => ({
-                  ...prev,
-                  total_score: prev.total_score + result.points
-              }));
-              
-              // Add to flags
-              const newFlag = {
-                  flag: flagHash,
-                  points: result.points,
-                  vulnerability: result.vulnerability,
-                  timestamp: new Date().toISOString()
-              };
-              
-              setFlags(prev => [...prev, newFlag]);
-              
-              // Update localStorage
-              const updatedPlayer = {
-                  ...gamePlayer,
-                  total_score: gamePlayer.total_score + result.points
-              };
-              localStorage.setItem('gamePlayer', JSON.stringify(updatedPlayer));
-              
-              return { success: true, data: result };
-          }
-          return { success: false, error: result.message };
-      } catch (error) {
-          return { success: false, error: error.message };
-      }
+    if (!gamePlayer) return { success: false, error: 'Jugador no registrado' };
+    try {
+      const result = await ApiService.submitFlag(flagHash);
+      if (!result.success) return { success: false, error: result.message };
+
+      // Calcular nuevo total_score
+      const newTotalScore = gamePlayer.total_score + result.points;
+
+      // Actualizar estado
+      setGamePlayer(prev => ({ ...prev, total_score: newTotalScore }));
+
+      // Actualizar flags
+      const newFlag = {
+        flag: flagHash,
+        points: result.points,
+        vulnerability: result.vulnerability,
+        timestamp: new Date().toISOString()
+      };
+      setFlags(prev => [...prev, newFlag]);
+
+      // Guardar en localStorage
+      localStorage.setItem(
+        'gamePlayer',
+        JSON.stringify({ ...gamePlayer, total_score: newTotalScore })
+      );
+
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   };
 
   const loadLeaderboard = async () => {
     try {
       const data = await ApiService.getLeaderboard();
-      if (data.success) {
-        setLeaderboard(data.leaderboard);
-      }
+      if (data.success) setLeaderboard(data.leaderboard);
     } catch (error) {
       console.error('Error loading leaderboard:', error);
     }
   };
 
-  const value = {
-    gamePlayer,
-    leaderboard,
-    vulnerabilities,
-    flags,
-    registerPlayer,
-    submitFlag,
-    loadLeaderboard
-  };
-
   return (
-    <GameContext.Provider value={value}>
+    <GameContext.Provider
+      value={{
+        gamePlayer,
+        leaderboard,
+        vulnerabilities,
+        flags,
+        registerPlayer,
+        submitFlag,
+        loadLeaderboard
+      }}
+    >
       {children}
     </GameContext.Provider>
   );

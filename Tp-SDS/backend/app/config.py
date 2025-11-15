@@ -1,19 +1,18 @@
 import os
-import secrets
 
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "MI_CLAVE_SECRETA_SEGURA_Y_FIJA")
     
-    # DOS BASES DE DATOS SEPARADAS
-    USERS_DATABASE = 'data/users.db'      # Datos reales - SEGURO
-    GAME_DATABASE = 'data/game.db'        # Juego/vulnerabilidades - INSECURO
+    # Bases de datos separadas
+    USERS_DATABASE = 'data/users.db'
+    GAME_DATABASE = 'data/game.db'
     
-    # Configuración CORS
+    # CORS
     CORS_ORIGINS = ["http://localhost:5173"]
     CORS_METHODS = ["GET", "POST", "PUT", "DELETE"]
     CORS_SUPPORTS_CREDENTIALS = True
     
-    # Configuración de roles
+    # Roles
     ROLES = {
         'presentador': 'presentador',
         'jugador': 'jugador'

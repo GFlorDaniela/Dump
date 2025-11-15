@@ -1,8 +1,8 @@
 import ApiService from './api';
 
 export const GameService = {
-  submitFlag: async (playerId, flagHash) => {
-    return await ApiService.submitFlag(playerId, flagHash);
+  submitFlag: async (flagHash) => {
+    return await ApiService.submitFlag(flagHash);
   },
   
   getLeaderboard: async () => {

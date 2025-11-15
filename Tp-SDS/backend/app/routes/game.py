@@ -1,11 +1,14 @@
 from flask import Blueprint, request, session, jsonify
-from ..models.database import get_users_db_connection, get_game_db_connection  # Cambiado de ...models
-from ..utils.helpers import requires_auth, update_leaderboard  # Cambiado de ...utils
+from app.models.database import get_users_db_connection, get_game_db_connection
+from ..utils.helpers import requires_auth, update_leaderboard
 from datetime import datetime
 import uuid
 
 game_bp = Blueprint('game', __name__)
 
+# ============================
+#   INFORMACIÓN DE ROLES
+# ============================
 @game_bp.route('/roles')
 def api_game_roles():
     return jsonify({
@@ -24,6 +27,10 @@ def api_game_roles():
         ]
     })
 
+
+# ============================
+#   REGISTRO EN GAME (duplica en users.db)
+# ============================
 @game_bp.route('/register', methods=['POST'])
 @requires_auth
 def api_game_register():
@@ -45,24 +52,23 @@ def api_game_register():
         conn = get_users_db_connection()
         c = conn.cursor()
 
-        # Verificar si el nickname ya existe
+        # Verificar nickname y email
         c.execute("SELECT id FROM jugadores WHERE nickname = ?", (nickname,))
         if c.fetchone():
             return jsonify({'success': False, 'message': 'Nickname ya existe'})
 
-        # Verificar si el email ya existe
         c.execute("SELECT id FROM jugadores WHERE email = ?", (email,))
         if c.fetchone():
             return jsonify({'success': False, 'message': 'Email ya registrado'})
 
-        # Crear nuevo jugador con UUID
+        # Crear jugador
         player_uuid = str(uuid.uuid4())
         created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        c.execute(
-            "INSERT INTO jugadores (uuid, nickname, nombre, apellido, email, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (player_uuid, nickname, nombre, apellido, email, role, created_at)
-        )
+        c.execute("""
+            INSERT INTO jugadores (uuid, nickname, nombre, apellido, email, role, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (player_uuid, nickname, nombre, apellido, email, role, created_at))
 
         player_id = c.lastrowid
         conn.commit()
@@ -70,7 +76,7 @@ def api_game_register():
         return jsonify({
             'success': True,
             'player': {
-                'id': player_id,
+                'id': f"U-{player_id:04d}",
                 'uuid': player_uuid,
                 'nickname': nickname,
                 'nombre': nombre,
@@ -88,14 +94,18 @@ def api_game_register():
         if conn:
             conn.close()
 
+
+# ============================
+#   SUBMIT FLAG
+# ============================
 @game_bp.route('/submit-flag', methods=['POST'])
 @requires_auth
 def api_game_submit_flag():
     data = request.get_json()
-    player_id = session.get('user_id')  # ✅ Seguro - de la sesión
+    raw_player_id = session.get('user_id')   # ID REAL sin prefijo
     flag_hash = data.get('flag_hash')
 
-    if not player_id or not flag_hash:
+    if not raw_player_id or not flag_hash:
         return jsonify({'success': False, 'message': 'Datos incompletos'})
 
     conn = None
@@ -103,37 +113,41 @@ def api_game_submit_flag():
         conn = get_game_db_connection()
         c = conn.cursor()
 
-        # Verificar si la flag existe en vulnerabilidades
+        # Flag existe?
         c.execute("SELECT * FROM vulnerabilities WHERE flag_hash = ?", (flag_hash,))
         vulnerability = c.fetchone()
 
         if not vulnerability:
             return jsonify({'success': False, 'message': 'Flag inválida o no encontrada'})
 
-        # Verificar si ya completó esta vulnerabilidad
-        c.execute("SELECT id FROM game_flags WHERE player_id = ? AND flag_hash = ?", 
-                 (player_id, flag_hash))
+        # Ya completada?
+        c.execute("""
+            SELECT id 
+            FROM game_flags 
+            WHERE player_id = ? AND flag_hash = ?
+        """, (raw_player_id, flag_hash))
+
         if c.fetchone():
             return jsonify({'success': False, 'message': 'Ya completaste esta vulnerabilidad'})
 
-        # Registrar la flag completada
+        # Registrar flag
         completed_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        c.execute(
-            "INSERT INTO game_flags (player_id, vulnerability_type, flag_hash, points, completed_at) VALUES (?, ?, ?, ?, ?)", 
-            (player_id, vulnerability['name'], flag_hash, vulnerability['points'], completed_at)
-        )
+        c.execute("""
+            INSERT INTO game_flags (player_id, vulnerability_type, flag_hash, points, completed_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (raw_player_id, vulnerability['name'], flag_hash, vulnerability['points'], completed_at))
 
-        # Actualizar puntuación total del jugador en users_db
+        # Actualizar score
         users_conn = get_users_db_connection()
         users_c = users_conn.cursor()
-        users_c.execute(
-            "UPDATE jugadores SET total_score = total_score + ?, last_activity = ? WHERE id = ?",
-            (vulnerability['points'], completed_at, player_id)
-        )
+        users_c.execute("""
+            UPDATE jugadores 
+            SET total_score = total_score + ?, last_activity = ?
+            WHERE id = ?
+        """, (vulnerability['points'], completed_at, raw_player_id))
         users_conn.commit()
         users_conn.close()
 
-        # Actualizar leaderboard
         update_leaderboard()
         conn.commit()
 
@@ -141,7 +155,8 @@ def api_game_submit_flag():
             'success': True,
             'message': f'¡Vulnerabilidad {vulnerability["name"]} completada! +{vulnerability["points"]} puntos',
             'points': vulnerability['points'],
-            'vulnerability': vulnerability['name']
+            'vulnerability': vulnerability['name'],
+            'player_id': f"U-{raw_player_id:04d}"
         })
 
     except Exception as e:
@@ -150,6 +165,10 @@ def api_game_submit_flag():
         if conn:
             conn.close()
 
+
+# ============================
+#   LEADERBOARD
+# ============================
 @game_bp.route('/leaderboard')
 @requires_auth
 def api_game_leaderboard():
@@ -157,7 +176,7 @@ def api_game_leaderboard():
     try:
         conn = get_users_db_connection()
         c = conn.cursor()
-        
+
         c.execute('''
             SELECT 
                 j.id, j.nickname, j.total_score, j.nombre, j.apellido,
@@ -170,21 +189,21 @@ def api_game_leaderboard():
             LIMIT 10
         ''')
 
-        leaderboard = c.fetchall()
+        rows = c.fetchall()
         leaderboard_data = []
-        
-        for player in leaderboard:
+
+        for p in rows:
             leaderboard_data.append({
-                'id': player[0],
-                'nickname': player[1],
-                'total_score': player[2],
-                'nombre': player[3],
-                'apellido': player[4],
-                'position': player[5],
-                'last_updated': player[6],
-                'flags_completed': player[7] or 0
+                'id': f"U-{p[0]:04d}",
+                'nickname': p[1],
+                'total_score': p[2],
+                'nombre': p[3],
+                'apellido': p[4],
+                'position': p[5],
+                'last_updated': p[6],
+                'flags_completed': p[7] or 0
             })
-            
+
         return jsonify({'success': True, 'leaderboard': leaderboard_data})
 
     except Exception as e:
@@ -193,6 +212,10 @@ def api_game_leaderboard():
         if conn:
             conn.close()
 
+
+# ============================
+#   VULNERABILITIES LIST
+# ============================
 @game_bp.route('/vulnerabilities')
 @requires_auth
 def api_game_vulnerabilities():
@@ -201,20 +224,21 @@ def api_game_vulnerabilities():
         conn = get_game_db_connection()
         c = conn.cursor()
 
-        c.execute("SELECT name, description, difficulty, points, solution_hint FROM vulnerabilities")
+        c.execute("""
+            SELECT name, description, difficulty, points, solution_hint
+            FROM vulnerabilities
+        """)
         vulnerabilities = c.fetchall()
 
-        vulns_data = []
-        for vuln in vulnerabilities:
-            vulns_data.append({
-                'name': vuln[0],
-                'description': vuln[1],
-                'difficulty': vuln[2],
-                'points': vuln[3],
-                'hint': vuln[4]
-            })
-            
-        return jsonify({'success': True, 'vulnerabilities': vulns_data})
+        data = [{
+            'name': v[0],
+            'description': v[1],
+            'difficulty': v[2],
+            'points': v[3],
+            'hint': v[4]
+        } for v in vulnerabilities]
+
+        return jsonify({'success': True, 'vulnerabilities': data})
 
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error: {str(e)}'})
@@ -222,160 +246,82 @@ def api_game_vulnerabilities():
         if conn:
             conn.close()
 
-# === VULNERABILIDADES EDUCATIVAS - PARTE DEL JUEGO ===
+
+# ================================
+#     VULNERABILIDADES COMPLETAS
+# ================================
+# Estas van vulnerables y sin prefijos
 
 @game_bp.route('/sql-injection-login', methods=['POST'])
 @requires_auth
 def sql_injection_login():
-    """Endpoint vulnerable a SQL Injection - PARTE DEL JUEGO"""
-    data = request.get_json()
-    username = data.get('username', '')
-    password = data.get('password', '')
+    data = request.json
+    user = data.get('user')
+    password = data.get('password')
 
-    conn = get_game_db_connection()
+    conn = get_users_db_connection()
     c = conn.cursor()
 
-    # VULNERABILIDAD INTENCIONAL - PARTE DEL DESAFÍO
-    query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+    # intencionalmente vulnerable
+    query = f"SELECT id, nickname FROM jugadores WHERE nickname = '{user}' AND password = '{password}'"
+    c.execute(query)
+    row = c.fetchone()
+    conn.close()
 
-    try:
-        c.execute(query)
-        results = c.fetchall()
+    if row:
+        return {'success': True, 'message': 'Login exitoso (vulnerable)', 'user': row[1]}
+    else:
+        return {'success': False, 'message': 'Credenciales incorrectas'}
 
-        # Si la inyección fue exitosa, proporcionar flag PREDEFINIDA
-        if "' OR '1'='1'" in username.upper() or "' OR '1'='1'" in password.upper() or results:
-            return jsonify({
-                'success': True,
-                'flag': 'SQL1_FLAG_7x9aB2cD',  # ✅ Flag predefinida
-                'message': '¡SQL Injection detectado! Flag: SQL1_FLAG_7x9aB2cD',
-                'vulnerability': 'SQL Injection - Login',
-                'points': 100
-            })
-    except Exception as e:
-        pass
-    finally:
-        conn.close()
-
-    return jsonify({
-        'success': False,
-        'message': 'Intento de SQL Injection fallido o credenciales incorrectas'
-    })
 
 @game_bp.route('/idor-test', methods=['GET'])
 @requires_auth
 def idor_vulnerability():
-    """Endpoint vulnerable a IDOR - PARTE DEL JUEGO"""
-    user_id = request.args.get('user_id', None)
-
-    conn = get_game_db_connection()
+    user_id = request.args.get('id')  # vulnerable
+    conn = get_users_db_connection()
     c = conn.cursor()
 
-    # VULNERABILIDAD IDOR INTENCIONAL
-    if user_id:
-        c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-        user_data = c.fetchone()
-
-        if user_data and user_id != str(session.get('user_id')):
-            # DETECTÓ IDOR - Dar flag PREDEFINIDA
-            return jsonify({
-                'success': True,
-                'user_data': {
-                    'id': user_data[0],
-                    'username': user_data[1],
-                    'role': user_data[3],
-                    'email': user_data[4],
-                    'full_name': user_data[5]
-                } if user_data else None,
-                'flag': 'IDOR_FLAG_5z2qW8rT',  # ✅ Flag predefinida
-                'message': '¡IDOR detectado! Flag: IDOR_FLAG_5z2qW8rT',
-                'vulnerability': 'IDOR - Perfiles',
-                'points': 150
-            })
-
+    c.execute("SELECT id, nickname, email FROM jugadores WHERE id = ?", (user_id,))
+    row = c.fetchone()
     conn.close()
-    return jsonify({'success': False, 'message': 'No se detectó IDOR'})
+
+    if not row:
+        return {'success': False, 'message': 'Usuario no encontrado'}
+
+    return {
+        'success': True,
+        'user': {
+            'id': row[0],
+            'nickname': row[1],
+            'email': row[2]
+        }
+    }
+
 
 @game_bp.route('/information-disclosure', methods=['GET'])
 @requires_auth
 def information_disclosure():
-    """Endpoint vulnerable a Information Disclosure - PARTE DEL JUEGO"""
-    conn = get_game_db_connection()
-    c = conn.cursor()
-
-    # VULNERABILIDAD: Exponer logs sensibles
-    # 💥 CAMBIO CRÍTICO: Eliminar LIMIT 10 para garantizar que TODOS los logs se carguen.
-    c.execute("SELECT * FROM system_logs ORDER BY timestamp DESC")
-    logs = c.fetchall()
-
-    logs_data = []
-    for log in logs:
-        logs_data.append({
-            'id': log[0],
-            'timestamp': log[1],
-            'event': log[2],
-            'details': log[3],
-            'user_id': log[4]
-        })
-
-    conn.close()
-
-    # SIEMPRE dar flag cuando se accede a los logs (es información sensible)
-    response_data = {
+    return {
         'success': True,
-        'logs': logs_data,
-        'flag': 'INFO_FLAG_9m4nX6pL',  # ✅ SIEMPRE dar flag aquí
-        'message': '¡Information Disclosure detectado! Accediste a logs sensibles. Flag: INFO_FLAG_9m4nX6pL',
-        'vulnerability': 'Information Disclosure',
-        'points': 80
+        'system_info': {
+            'debug': True,
+            'paths': {
+                'user_db': '../data/user.db',
+                'game_db': '../data/game.db'
+            },
+            'secrets': {
+                'admin_key': 'HARDCODED_ADMIN_KEY_12345'
+            }
+        }
     }
 
-    return jsonify(response_data)
 
 @game_bp.route('/weak-authentication', methods=['POST'])
 @requires_auth
 def weak_authentication():
-    """Endpoint vulnerable a Weak Authentication - PARTE DEL JUEGO"""
-    data = request.get_json()
-    username = data.get('username', '')
-    password = data.get('password', '')
+    data = request.json
+    token = data.get('token')
 
-    conn = get_game_db_connection()
-    c = conn.cursor()
-
-    # VULNERABILIDAD: Contraseñas débiles conocidas
-    weak_passwords = ['123456', 'password', 'admin', '1234', 'test', 'abuela123', 'ChefObscuro123!']
-    
-    c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
-    user = c.fetchone()
-    conn.close()
-
-    if user:
-        # SI USA CONTRASEÑA DÉBIL, DAR FLAG PREDEFINIDA
-        if password in weak_passwords:
-            return jsonify({
-                'success': True,
-                'user': {
-                    'id': user[0],
-                    'username': user[1],
-                    'role': user[3]
-                },
-                'flag': 'WEAK_AUTH_FLAG_1k7jR3sV',  # ✅ Flag predefinida
-                'message': '¡Weak Authentication detectado! Flag: WEAK_AUTH_FLAG_1k7jR3sV',
-                'vulnerability': 'Weak Authentication',
-                'points': 120
-            })
-        else:
-            return jsonify({
-                'success': True,
-                'user': {
-                    'id': user[0],
-                    'username': user[1],
-                    'role': user[3]
-                },
-                'message': 'Login exitoso (pero no es una contraseña débil conocida)'
-            })
-
-    return jsonify({
-        'success': False,
-        'message': 'Credenciales incorrectas'
-    })
+    if token == "letmein":
+        return {'success': True, 'message': 'Acceso débil concedido'}
+    return {'success': False, 'message': 'Token inválido'}

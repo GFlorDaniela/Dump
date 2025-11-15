@@ -1,5 +1,5 @@
 from flask import Blueprint, request, session, jsonify
-from ..models.database import get_users_db_connection
+from app.models.database import get_users_db_connection
 from ..utils.helpers import requires_auth, requires_presentador
 from ..utils.security import hash_password
 import uuid
@@ -7,6 +7,9 @@ from datetime import datetime
 
 presentadores_bp = Blueprint('presentadores', __name__)
 
+# -------------------------------------
+# DASHBOARD PARA PRESENTADORES
+# -------------------------------------
 @presentadores_bp.route('/dashboard')
 @requires_auth
 @requires_presentador
@@ -17,11 +20,11 @@ def presentador_dashboard():
         conn = get_users_db_connection()
         c = conn.cursor()
         
-        # Obtener estadísticas de jugadores
+        # Estadísticas de jugadores
         c.execute("SELECT COUNT(*) as total_jugadores, AVG(total_score) as promedio_puntos FROM jugadores")
         stats = c.fetchone()
         
-        # Obtener top jugadores
+        # Top 5 jugadores
         c.execute("SELECT nickname, total_score FROM jugadores ORDER BY total_score DESC LIMIT 5")
         top_jugadores = c.fetchall()
         
@@ -43,6 +46,10 @@ def presentador_dashboard():
         if conn:
             conn.close()
 
+
+# -------------------------------------
+# CREAR NUEVO PRESENTADOR
+# -------------------------------------
 @presentadores_bp.route('/crear-presentador', methods=['POST'])
 @requires_auth
 @requires_presentador
@@ -71,7 +78,7 @@ def crear_presentador():
         # Crear nuevo presentador
         presentador_uuid = str(uuid.uuid4())
         password_hash = hash_password(password)
-        created_at = datetime.now().isoformat()
+        created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         c.execute('''
             INSERT INTO presentadores (uuid, nickname, nombre, apellido, email, password_hash, role, created_at)

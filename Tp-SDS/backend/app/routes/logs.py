@@ -1,5 +1,5 @@
 from flask import Blueprint, session, jsonify
-from ..models.database import get_game_db_connection
+from app.models.database import get_users_db_connection, get_game_db_connection
 from ..utils.helpers import requires_auth
 
 logs_bp = Blueprint('logs', __name__)

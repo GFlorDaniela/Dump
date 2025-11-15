@@ -2,14 +2,11 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
-// Configurar axios con manejo de errores mejorado
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
-  timeout: 5000, // Reducido timeout para desarrollo
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  timeout: 5000,
+  headers: { 'Content-Type': 'application/json' },
 });
 
 // Interceptor de solicitudes
@@ -29,8 +26,7 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('❌ API Error:', error.response?.data || error.message);
-    
-    // Manejar diferentes tipos de errores
+
     if (error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
       return Promise.reject({
         message: 'No se puede conectar al servidor. Verifica que el backend esté ejecutándose.',
@@ -55,9 +51,7 @@ api.interceptors.response.use(
       });
     }
 
-    const errorMessage = error.response?.data?.message ||
-      error.message || 'Error de conexión con el servidor';
-    
+    const errorMessage = error.response?.data?.message || error.message || 'Error de conexión con el servidor';
     return Promise.reject({
       message: errorMessage,
       status: error.response?.status,
@@ -68,111 +62,94 @@ api.interceptors.response.use(
 
 class ApiService {
   // --- AUTHENTICATION ---
-  async login(credentials) {
+  login(credentials) {
     return api.post('/auth/login', credentials);
   }
 
-  async logout() {
+  logout() {
     return api.post('/auth/logout');
   }
 
-  async registerPlayer(playerData) {
+  registerPlayer(playerData) {
     return api.post('/auth/register/jugador', playerData);
   }
 
+  checkSession() {
+    return api.get('/auth/check-session');
+  }
+
   // --- DASHBOARD & RECIPES ---
-  async getDashboard() {
+  getDashboard() {
     return api.get('/dashboard');
   }
 
-  async getAllRecipes() {
+  getAllRecipes() {
     return api.get('/recetas');
   }
 
-  async getRecipe(id) {
+  getRecipe(id) {
     return api.get(`/receta/${id}`);
   }
 
-  async unlockRecipe(id, password) {
+  unlockRecipe(id, password) {
     return api.post(`/desbloquear_receta/${id}`, { password });
   }
 
-  async searchRecipes(query) {
+  searchRecipes(query) {
     return api.post('/buscar', { busqueda: query });
   }
 
   // --- GAME & VULNERABILITIES ---
-  async submitFlag(flagHash) {
-      return api.post('/game/submit-flag', {
-          flag_hash: flagHash
-      });
+  submitFlag(flagHash) {
+    return api.post('/game/submit-flag', { flag_hash: flagHash });
   }
 
-  async getLeaderboard() {
-      return api.get('/game/leaderboard');
+  getLeaderboard() {
+    return api.get('/game/leaderboard');
   }
 
-  async getVulnerabilities() {
-      return api.get('/game/vulnerabilities');
+  getVulnerabilities() {
+    return api.get('/game/vulnerabilities');
   }
 
-  async registerGamePlayer(playerData) {
-      return api.post('/game/register', playerData);
+  registerGamePlayer(playerData) {
+    return api.post('/game/register', playerData);
   }
 
-  // --- VULNERABILITY TESTING ENDPOINTS ---
-  async testSQLInjectionLogin(credentials) {
-      return api.post('/game/sql-injection-login', credentials);
+  testSQLInjectionLogin(credentials) {
+    return api.post('/game/sql-injection-login', credentials);
   }
 
-  async testSQLInjectionSearch(query) {
-      return api.post('/buscar', { busqueda: query });
+  testSQLInjectionSearch(query) {
+    return api.post('/buscar', { busqueda: query });
   }
 
-  async testInformationDisclosure() {
-      return api.get('/game/information-disclosure');
+  testInformationDisclosure() {
+    return api.get('/game/information-disclosure');
   }
 
-  async testWeakAuthentication(credentials) {
-      return api.post('/game/weak-authentication', credentials);
+  testWeakAuthentication(credentials) {
+    return api.post('/game/weak-authentication', credentials);
   }
 
   // --- VULNERABILITY ENDPOINTS ---
-  async getProfile(userId = null) {
+  getProfile(userId = null) {
     const params = userId ? { user_id: userId } : {};
     return api.get('/perfil', { params });
   }
 
-  async getSystemLogs() {
+  getSystemLogs() {
     return api.get('/logs');
   }
 
   // --- PRESENTADOR ENDPOINTS ---
-  async getPresenterDashboard() {
+  getPresenterDashboard() {
     return api.get('/presentador/dashboard');
   }
 
-  async createPresenter(presenterData) {
+  createPresenter(presenterData) {
     return api.post('/presentador/crear-presentador', presenterData);
   }
-
-  // --- VULNERABILITY TESTING ENDPOINTS ---
-  async testSQLInjectionLogin(credentials) {
-      return api.post('/game/sql-injection-login', credentials);
-  }
-
-  async testSQLInjectionSearch(query) {
-      return api.post('/buscar', { busqueda: query });
-  }
-
-  async testInformationDisclosure() {
-      return api.get('/game/information-disclosure');
-  }
-
-  async testWeakAuthentication(credentials) {
-      return api.post('/game/weak-authentication', credentials);
-  }
-
 }
 
 export default new ApiService();

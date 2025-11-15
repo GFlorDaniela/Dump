@@ -1,148 +1,137 @@
-from flask import Blueprint, request, session, jsonify
-from ..models.database import get_users_db_connection, get_game_db_connection  # Cambiado de ...models
-from ..utils.security import check_password, hash_password  # Cambiado de ...utils
-from ..utils.helpers import log_event  # Cambiado de ...utils
-import uuid
+from flask import Blueprint, request, jsonify, session
 import sqlite3
-from datetime import datetime
+import bcrypt
+from werkzeug.security import generate_password_hash, check_password_hash
 
-auth_bp = Blueprint('auth', __name__)
+# -----------------------------------------------------
+# 🔹 Blueprint con url_prefix para que React lo encuentre
+# -----------------------------------------------------
+auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
+USER_DB = "data/users.db"
+
+def get_connection(db_path):
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+# -------------------------------------
+# 🔐 LOGIN
+# -------------------------------------
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-    username = data.get('username', '')
-    password = data.get('password', '')
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
 
-    # SISTEMA SEGURO - SIN VULNERABILIDADES
-    # Primero verificar si es presentador (autenticación fuerte)
-    presenter = authenticate_presentador(username, password)
-    if presenter:
-        session['user_id'] = presenter['id']
-        session['username'] = presenter['nickname']
-        session['role'] = 'presentador'
-        session['uuid'] = presenter['uuid']
+    if not username or not password:
+        return jsonify({'success': False, 'message': 'Usuario y contraseña requeridos'}), 400
 
-        presenter_data = {
-            'id': presenter['id'],
-            'username': presenter['nickname'],
-            'role': 'presentador',
-            'nombre': presenter['nombre'],
-            'apellido': presenter['apellido'],
-            'email': presenter['email']
-        }
-
-        return jsonify({
-            'success': True,
-            'user': presenter_data,
-            'message': 'Login exitoso como presentador'
-        })
-
-    # Si no es presentador, verificar como jugador
-    player = authenticate_jugador(username, password)
-    if player:
-        session['user_id'] = player['id']
-        session['username'] = player['nickname']
-        session['role'] = 'jugador'
-        session['uuid'] = player['uuid']
-
-        player_data = {
-            'id': player['id'],
-            'username': player['nickname'],
-            'role': 'jugador',
-            'nombre': player['nombre'],
-            'apellido': player['apellido'],
-            'email': player['email']
-        }
-
-        return jsonify({
-            'success': True,
-            'user': player_data,
-            'message': 'Login exitoso como jugador'
-        })
-
-    return jsonify({
-        'success': False,
-        'message': 'Credenciales incorrectas'
-    }), 401
-
-def authenticate_presentador(username, password):
-    """Autenticación FUERTE para presentadores"""
-    conn = get_users_db_connection()
-    c = conn.cursor()
-
-    c.execute('SELECT * FROM presentadores WHERE nickname = ? OR email = ?', (username, username))
-    presenter = c.fetchone()
+    conn = get_connection(USER_DB)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, uuid, nickname, email, nombre, apellido, password_hash, role
+        FROM jugadores
+        WHERE nickname = ?
+    """, (username,))
+    user = cursor.fetchone()
     conn.close()
 
-    if presenter and check_password(password, presenter['password_hash']):
-        return dict(presenter)
-    return None
+    if not user:
+        return jsonify({'success': False, 'message': 'Usuario no encontrado'}), 404
 
-def authenticate_jugador(username, password):
-    """Autenticación SEGURA para jugadores - ACTUALIZADO"""
-    conn = get_users_db_connection()
-    c = conn.cursor()
+    stored_hash = user["password_hash"]
 
-    c.execute('SELECT * FROM jugadores WHERE nickname = ? OR email = ?', (username, username))
-    player = c.fetchone()
+    # bcrypt o werkzeug
+    if stored_hash.startswith("$2b$"):
+        if not bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
+            return jsonify({'success': False, 'message': 'Contraseña incorrecta'}), 401
+    else:
+        if not check_password_hash(stored_hash, password):
+            return jsonify({'success': False, 'message': 'Contraseña incorrecta'}), 401
+
+    public_id = f"U-{user['id']:04d}"
+    user_data = {
+        'id': public_id,
+        'numeric_id': user['id'],
+        'uuid': user['uuid'],
+        'username': user['nickname'],
+        'email': user['email'],
+        'nombre': user['nombre'],
+        'apellido': user['apellido'],
+        'role': user['role']
+    }
+
+    # Guardar usuario en sesión
+    session['user'] = user_data
+
+    return jsonify({'success': True, 'usuario': user_data}), 200
+
+
+# -------------------------------------
+# 🆕 REGISTRO
+# -------------------------------------
+@auth_bp.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    email = data.get('email', '').strip()
+    nombre = data.get('nombre', '').strip()
+    apellido = data.get('apellido', '').strip()
+
+    if not username or not password or not email:
+        return jsonify({'success': False, 'message': 'Faltan datos obligatorios'}), 400
+
+    conn = get_connection(USER_DB)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM jugadores WHERE nickname = ?", (username,))
+    if cursor.fetchone():
+        conn.close()
+        return jsonify({'success': False, 'message': 'El nombre de usuario ya existe'}), 409
+
+    hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    cursor.execute("""
+        INSERT INTO jugadores (uuid, nickname, nombre, apellido, email, password_hash, role)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (None, username, nombre, apellido, email, hashed_pw, "jugador"))
+    new_id = cursor.lastrowid
+    conn.commit()
     conn.close()
 
-    if player and check_password(password, player['password_hash']):
-        return dict(player)
-    return None
+    public_id = f"U-{new_id:04d}"
+    usuario = {
+        'id': public_id,
+        'numeric_id': new_id,
+        'username': username,
+        'email': email,
+        'nombre': nombre,
+        'apellido': apellido,
+        'role': 'jugador'
+    }
 
+    # Guardar usuario en sesión
+    session['user'] = usuario
+
+    return jsonify({'success': True, 'usuario': usuario, 'message': 'Usuario registrado exitosamente'}), 201
+
+
+# -------------------------------------
+# ✔ CHECK SESSION (F5 seguro)
+# -------------------------------------
+@auth_bp.route('/check-session', methods=['GET'])
+def check_session():
+    user = session.get("user")
+    if user:
+        return jsonify({'success': True, 'usuario': user}), 200
+    return jsonify({'success': False, 'usuario': None}), 200
+
+
+# -------------------------------------
+# 🚪 LOGOUT
+# -------------------------------------
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
     session.clear()
-    return jsonify({'success': True, 'message': 'Sesión cerrada'})
-
-@auth_bp.route('/register/jugador', methods=['POST'])
-def register_jugador():
-    data = request.get_json()
-    nickname = data.get('nickname')
-    nombre = data.get('nombre')
-    apellido = data.get('apellido')
-    email = data.get('email')
-    password = data.get('password')
-
-    if not all([nickname, nombre, apellido, email, password]):
-        return jsonify({'success': False, 'message': 'Todos los campos son requeridos'})
-
-    conn = get_users_db_connection()
-    c = conn.cursor()
-
-    try:
-        # ✅ USAR HASH DE CONTRASEÑA (SEGURO)
-        password_hash = hash_password(password)
-        player_uuid = str(uuid.uuid4())
-        created_at = datetime.now().isoformat()
-
-        c.execute('''
-            INSERT INTO jugadores (uuid, nickname, nombre, apellido, email, password_hash, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (player_uuid, nickname, nombre, apellido, email, password_hash, created_at))
-
-        conn.commit()
-        player_id = c.lastrowid
-
-        return jsonify({
-            'success': True,
-            'player': {
-                'id': player_id,
-                'uuid': player_uuid,
-                'nickname': nickname,
-                'nombre': nombre,
-                'apellido': apellido,
-                'email': email,
-                'total_score': 0,
-                'role': 'jugador'
-            }
-        })
-
-    except sqlite3.IntegrityError:
-        return jsonify({'success': False, 'message': 'Nickname o email ya existen'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': f'Error en el registro: {str(e)}'})
-    finally:
-        conn.close()
+    return jsonify({'success': True, 'message': 'Sesión cerrada'}), 200

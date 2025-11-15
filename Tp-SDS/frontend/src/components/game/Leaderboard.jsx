@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useGame } from '../contexts/../../contexts/GameContext';
+import { useGame } from '../../contexts/GameContext';
 import { useNotification } from '../../contexts/NotificationContext';
 
 const Leaderboard = () => {

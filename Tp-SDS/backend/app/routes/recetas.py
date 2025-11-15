@@ -1,9 +1,12 @@
 from flask import Blueprint, request, session, jsonify
-from ..models.database import get_game_db_connection
+from app.models.database import get_game_db_connection
 from ..utils.helpers import requires_auth, log_event
 
 recetas_bp = Blueprint('recetas', __name__)
 
+# -------------------------------------
+# BÚSQUEDA DE RECETAS (vulnerable a SQLi)
+# -------------------------------------
 @recetas_bp.route('/buscar', methods=['POST'])
 @requires_auth
 def api_buscar():
@@ -15,9 +18,8 @@ def api_buscar():
         conn = get_game_db_connection()
         c = conn.cursor()
 
-        # VULNERABILIDAD: SQL Injection en búsqueda - consulta simple
+        # VULNERABILIDAD intencional: SQL Injection
         query = f"SELECT * FROM recetas WHERE nombre LIKE '%{busqueda}%'"
-        
         c.execute(query)
         recetas = c.fetchall()
         
@@ -37,8 +39,8 @@ def api_buscar():
 
         response_data = {'success': True, 'recetas': recetas_json}
 
-        # Detectar SQL Injection de forma más simple
-        if "'" in busqueda or "--" in busqueda or "OR '1'='1'" in busqueda.upper():
+        # Detectar patrones de SQLi simples y asignar flag
+        if any(x in busqueda for x in ["'", "--"]) or "OR '1'='1'" in busqueda.upper():
             response_data['flag'] = 'SQL2_FLAG_3y8fE1gH'
             response_data['message'] = '¡SQL Injection en búsqueda detectado! Flag: SQL2_FLAG_3y8fE1gH'
             response_data['vulnerability'] = 'SQL Injection - Búsqueda'
@@ -54,6 +56,10 @@ def api_buscar():
         if conn:
             conn.close()
 
+
+# -------------------------------------
+# LISTAR TODAS LAS RECETAS DESBLOQUEADAS
+# -------------------------------------
 @recetas_bp.route('/recetas')
 @requires_auth
 def api_recetas():
@@ -89,6 +95,10 @@ def api_recetas():
         if conn:
             conn.close()
 
+
+# -------------------------------------
+# ACCEDER A UNA RECETA POR ID
+# -------------------------------------
 @recetas_bp.route('/receta/<int:receta_id>')
 @requires_auth
 def api_receta(receta_id):
@@ -125,6 +135,10 @@ def api_receta(receta_id):
         if conn:
             conn.close()
 
+
+# -------------------------------------
+# DESBLOQUEAR RECETA (contraseña débil)
+# -------------------------------------
 @recetas_bp.route('/desbloquear_receta/<int:receta_id>', methods=['POST'])
 @requires_auth
 def api_desbloquear_receta(receta_id):
@@ -142,8 +156,8 @@ def api_desbloquear_receta(receta_id):
         if not receta:
             return jsonify({'success': False, 'message': 'Receta no encontrada'})
 
-        # VULNERABILIDAD: Verificación débil de contraseña
-        if password == receta[5]:  # password_bloqueo
+        # Comparación directa (vulnerable intencionalmente)
+        if password == receta[5]:
             receta_json = {
                 'id': receta[0],
                 'nombre': receta[1],
@@ -156,7 +170,6 @@ def api_desbloquear_receta(receta_id):
                 'created_at': receta[8]
             }
 
-            # Proporcionar flags según la receta desbloqueada
             flag = None
             if receta_id == 3:
                 flag = 'RECETA3_FLAG_202'
@@ -185,4 +198,3 @@ def api_desbloquear_receta(receta_id):
     finally:
         if conn:
             conn.close()
-
