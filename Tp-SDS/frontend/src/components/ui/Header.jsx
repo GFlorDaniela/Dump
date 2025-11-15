@@ -10,11 +10,17 @@ const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const navigation = [
+  const navigation = user?.role === 'presentador' ? [
     { name: 'Dashboard', href: '/dashboard', icon: '📊' },
     { name: 'Vulnerabilidades', href: '/vulnerabilities', icon: '🔓' },
     { name: 'Recetas', href: '/recipes', icon: '📖' },
     { name: 'Leaderboard', href: '/leaderboard', icon: '🏆' },
+    { name: 'Perfil', href: '/profile', icon: '👤' },
+    { name: 'Panel Presentador', href: '/presenter', icon: '🎤' },
+  ] : [
+    { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+    { name: 'Vulnerabilidades', href: '/vulnerabilities', icon: '🔓' },
+    { name: 'Recetas', href: '/recipes', icon: '📖' },
     { name: 'Perfil', href: '/profile', icon: '👤' },
   ];
 

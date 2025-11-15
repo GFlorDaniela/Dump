@@ -32,23 +32,31 @@ const Dashboard = () => {
     }
   };
 
-  const handleSearch = async (e) => {
+const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
 
     try {
-      const results = await ApiService.searchRecipes(searchTerm);
-      setSearchResults(results.recetas || []);
-      setShowSearch(true);
-      
-      // Check for SQL Injection flag
-      if (results.flag) {
-        showNotification(`¡SQL Injection detectado! Flag: ${results.flag}`, 'success', 10000);
-      }
+        const results = await ApiService.searchRecipes(searchTerm);
+        setSearchResults(results.recetas || []);
+        setShowSearch(true);
+
+        // ✅ NUEVO: Mostrar flag si viene en la respuesta
+        if (results.flag) {
+            showNotification(`¡Vulnerabilidad encontrada! Flag: ${results.flag}`, 'success', 10000);
+            
+            // Auto-submit flag si es jugador
+            if (gamePlayer) {
+                const flagResult = await submitFlag(results.flag);
+                if (flagResult.success) {
+                    showNotification(`+${flagResult.data.points} puntos!`, 'success');
+                }
+            }
+        }
     } catch (error) {
-      showNotification('Error en la búsqueda', 'error');
+        showNotification('Error en la búsqueda', 'error');
     }
-  };
+};
 
   const handleUnlockRecipe = async (recipeId, password) => {
     try {
@@ -128,13 +136,103 @@ const Dashboard = () => {
                 >
                   🔓 Explorar Vulnerabilidades
                 </Link>
-                <Link
-                  to="/leaderboard"
-                  className="bg-gradient-to-r from-yellow-500 to-amber-600 text-white px-6 py-3 rounded-2xl font-semibold hover:from-yellow-600 hover:to-amber-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-                >
-                  🏆 Ver Leaderboard
-                </Link>
+                {user?.role === 'presentador' && (
+                  <Link
+                    to="/leaderboard"
+                    className="bg-gradient-to-r from-yellow-500 to-amber-600 text-white px-6 py-3 rounded-2xl font-semibold hover:from-yellow-600 hover:to-amber-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                  >
+                    🏆 Ver Leaderboard
+                  </Link>
+                )}
               </div>
+            </div>
+          </div>
+        )}
+
+                {/* Vulnerability Tester - AGREGAR ESTO DESPUÉS DEL GAME PLAYER STATS */}
+        {gamePlayer && (
+          <div className="bg-white rounded-3xl shadow-2xl p-6 mb-8 border-2 border-purple-200">
+            <h3 className="text-2xl font-bold text-gray-800 mb-4">🧪 Probador de Vulnerabilidades</h3>
+            <p className="text-gray-600 mb-4">
+              Ejecuta todas las pruebas automáticamente para capturar flags y ganar puntos.
+            </p>
+            
+            <button
+              onClick={async () => {
+                if (!gamePlayer) {
+                  showNotification('Debes registrarte como jugador primero', 'error');
+                  return;
+                }
+
+                console.log('🧪 Probando todas las vulnerabilidades...');
+
+                try {
+                  // 1. SQL Injection en Login
+                  const sqlInjectionLogin = await ApiService.testSQLInjectionLogin({
+                    username: "' OR '1'='1' --",
+                    password: "test"
+                  });
+                  
+                  if (sqlInjectionLogin.flag) {
+                    const flagResult = await submitFlag(sqlInjectionLogin.flag);
+                    if (flagResult.success) {
+                      showNotification(`✅ SQL Injection Login: +${flagResult.data.points} puntos`, 'success');
+                    }
+                  }
+
+                  // 2. SQL Injection en Búsqueda
+                  const sqlInjectionSearch = await ApiService.testSQLInjectionSearch("test' OR '1'='1");
+                  
+                  if (sqlInjectionSearch.flag) {
+                    const flagResult = await submitFlag(sqlInjectionSearch.flag);
+                    if (flagResult.success) {
+                      showNotification(`✅ SQL Injection Búsqueda: +${flagResult.data.points} puntos`, 'success');
+                    }
+                  }
+
+                  // 3. Information Disclosure
+                  const infoDisclosure = await ApiService.testInformationDisclosure();
+                  
+                  if (infoDisclosure.flag) {
+                    const flagResult = await submitFlag(infoDisclosure.flag);
+                    if (flagResult.success) {
+                      showNotification(`✅ Information Disclosure: +${flagResult.data.points} puntos`, 'success');
+                    }
+                  }
+
+                  // 4. Weak Authentication
+                  const weakAuth = await ApiService.testWeakAuthentication({
+                    username: "abuela",
+                    password: "abuela123"
+                  });
+                  
+                  if (weakAuth.flag) {
+                    const flagResult = await submitFlag(weakAuth.flag);
+                    if (flagResult.success) {
+                      showNotification(`✅ Weak Authentication: +${flagResult.data.points} puntos`, 'success');
+                    }
+                  }
+
+                  showNotification('¡Todas las vulnerabilidades probadas! Revisa tu puntuación.', 'success');
+                  loadDashboard(); // Recargar datos
+                  
+                } catch (error) {
+                  showNotification('Error al probar vulnerabilidades: ' + error.message, 'error');
+                }
+              }}
+              className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-3 px-4 rounded-2xl font-semibold hover:from-purple-600 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+            >
+              🚀 Ejecutar Todas las Pruebas de Vulnerabilidades
+            </button>
+
+            <div className="mt-4 p-4 bg-blue-50 rounded-2xl border border-blue-200">
+              <h4 className="font-semibold text-blue-800 mb-2">Vulnerabilidades a probar:</h4>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• SQL Injection en Login</li>
+                <li>• SQL Injection en Búsqueda</li>
+                <li>• Information Disclosure</li>
+                <li>• Weak Authentication</li>
+              </ul>
             </div>
           </div>
         )}
@@ -232,52 +330,12 @@ const Dashboard = () => {
         <div className="bg-white rounded-3xl shadow-xl p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-2xl font-bold text-gray-800">📋 Logs del Sistema</h3>
-            <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
-              VULNERABILIDAD: Information Disclosure
-            </span>
+            <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium"></span>
           </div>
           
           <SystemLogsSection gamePlayer={gamePlayer} />
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Link
-            to="/vulnerabilities"
-            className="bg-white rounded-2xl shadow-lg p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105 border-2 border-transparent hover:border-blue-400"
-          >
-            <div className="text-4xl mb-3">🔓</div>
-            <h4 className="font-bold text-gray-800 mb-2">Laboratorio de Vulnerabilidades</h4>
-            <p className="text-gray-600 text-sm">Practica con diferentes tipos de ataques</p>
-          </Link>
-
-          <Link
-            to="/recipes"
-            className="bg-white rounded-2xl shadow-lg p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105 border-2 border-transparent hover:border-green-400"
-          >
-            <div className="text-4xl mb-3">📚</div>
-            <h4 className="font-bold text-gray-800 mb-2">Todas las Recetas</h4>
-            <p className="text-gray-600 text-sm">Explora la colección completa</p>
-          </Link>
-
-          <Link
-            to="/leaderboard"
-            className="bg-white rounded-2xl shadow-lg p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105 border-2 border-transparent hover:border-yellow-400"
-          >
-            <div className="text-4xl mb-3">🏆</div>
-            <h4 className="font-bold text-gray-800 mb-2">Leaderboard</h4>
-            <p className="text-gray-600 text-sm">Ver ranking de jugadores</p>
-          </Link>
-
-          <Link
-            to="/profile"
-            className="bg-white rounded-2xl shadow-lg p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105 border-2 border-transparent hover:border-purple-400"
-          >
-            <div className="text-4xl mb-3">👤</div>
-            <h4 className="font-bold text-gray-800 mb-2">Mi Perfil</h4>
-            <p className="text-gray-600 text-sm">Gestiona tu cuenta</p>
-          </Link>
-        </div>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { GameProvider } from './contexts/GameContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 
 // Components
-import RoleSelector from './components/auth/RoleSelector';
+import Start from './components/auth/Start';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import Dashboard from './components/dashboard/Dashboard';
@@ -43,7 +43,7 @@ const AppContent = () => {
           {!user ? (
             // Routes for non-authenticated users
             <>
-              <Route path="/" element={<RoleSelector />} />
+              <Route path="/" element={<Start />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="*" element={<Navigate to="/" replace />} />

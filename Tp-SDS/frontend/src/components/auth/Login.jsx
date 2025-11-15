@@ -115,34 +115,6 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Quick Fill Buttons */}
-          <div className="mt-6">
-            <p className="text-sm text-gray-600 text-center mb-3">Rellenado rápido:</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => quickFill('abuela', 'abuela123')}
-                className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-3 rounded-xl transition-colors"
-              >
-                👵 Abuela
-              </button>
-              <button
-                type="button"
-                onClick={() => quickFill('admin', 'ChefObscuro123!')}
-                className="text-xs bg-red-100 hover:bg-red-200 text-red-700 py-2 px-3 rounded-xl transition-colors"
-              >
-                👑 Admin
-              </button>
-            </div>
-          </div>
-
-          {/* SQL Injection Hint */}
-          <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-2xl">
-            <p className="text-sm text-yellow-800 text-center">
-              💡 <strong>SQL Injection Test:</strong> Intenta usar <code className="bg-yellow-100 px-1 rounded">' OR '1'='1' --</code> en usuario o contraseña
-            </p>
-          </div>
-
           {/* Back to Role Selector */}
           <div className="mt-6 text-center">
             <Link to="/" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
@@ -151,33 +123,6 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Demo Credentials */}
-        <div className="mt-8 bg-white rounded-2xl shadow-lg p-6">
-          <h3 className="font-bold text-gray-800 mb-3">🔐 Credenciales de Demo</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between items-center p-2 hover:bg-gray-50 rounded-lg">
-              <span className="font-medium">Presentadora:</span>
-              <div>
-                <code className="bg-blue-100 text-blue-700 px-2 py-1 rounded">Daniela</code>
-                <code className="bg-green-100 text-green-700 px-2 py-1 rounded ml-2">94477Despeñadero</code>
-              </div>
-            </div>
-            <div className="flex justify-between items-center p-2 hover:bg-gray-50 rounded-lg">
-              <span className="font-medium">Usuario Normal:</span>
-              <div>
-                <code className="bg-blue-100 text-blue-700 px-2 py-1 rounded">abuela</code>
-                <code className="bg-green-100 text-green-700 px-2 py-1 rounded ml-2">abuela123</code>
-              </div>
-            </div>
-            <div className="flex justify-between items-center p-2 hover:bg-gray-50 rounded-lg">
-              <span className="font-medium">Administrador:</span>
-              <div>
-                <code className="bg-blue-100 text-blue-700 px-2 py-1 rounded">admin</code>
-                <code className="bg-green-100 text-green-700 px-2 py-1 rounded ml-2">ChefObscuro123!</code>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

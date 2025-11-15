@@ -102,23 +102,39 @@ class ApiService {
   }
 
   // --- GAME & VULNERABILITIES ---
-  async submitFlag(playerId, flagHash) {
-    return api.post('/game/submit-flag', {
-      player_id: playerId,
-      flag_hash: flagHash
-    });
+  async submitFlag(flagHash) {
+      return api.post('/game/submit-flag', {
+          flag_hash: flagHash
+      });
   }
 
   async getLeaderboard() {
-    return api.get('/game/leaderboard');
+      return api.get('/game/leaderboard');
   }
 
   async getVulnerabilities() {
-    return api.get('/game/vulnerabilities');
+      return api.get('/game/vulnerabilities');
   }
 
   async registerGamePlayer(playerData) {
-    return api.post('/game/register', playerData);
+      return api.post('/game/register', playerData);
+  }
+
+  // --- VULNERABILITY TESTING ENDPOINTS ---
+  async testSQLInjectionLogin(credentials) {
+      return api.post('/game/sql-injection-login', credentials);
+  }
+
+  async testSQLInjectionSearch(query) {
+      return api.post('/buscar', { busqueda: query });
+  }
+
+  async testInformationDisclosure() {
+      return api.get('/game/information-disclosure');
+  }
+
+  async testWeakAuthentication(credentials) {
+      return api.post('/game/weak-authentication', credentials);
   }
 
   // --- VULNERABILITY ENDPOINTS ---
@@ -139,6 +155,24 @@ class ApiService {
   async createPresenter(presenterData) {
     return api.post('/presentador/crear-presentador', presenterData);
   }
+
+  // --- VULNERABILITY TESTING ENDPOINTS ---
+  async testSQLInjectionLogin(credentials) {
+      return api.post('/game/sql-injection-login', credentials);
+  }
+
+  async testSQLInjectionSearch(query) {
+      return api.post('/buscar', { busqueda: query });
+  }
+
+  async testInformationDisclosure() {
+      return api.get('/game/information-disclosure');
+  }
+
+  async testWeakAuthentication(credentials) {
+      return api.post('/game/weak-authentication', credentials);
+  }
+
 }
 
 export default new ApiService();

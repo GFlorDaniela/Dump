@@ -4,25 +4,25 @@ from ..utils.helpers import requires_auth, log_event
 
 recetas_bp = Blueprint('recetas', __name__)
 
-@recetas_bp.route('/dashboard')
+@recetas_bp.route('/buscar', methods=['POST'])
 @requires_auth
-def api_dashboard():
+def api_buscar():
+    data = request.get_json()
+    busqueda = data.get('busqueda', '')
+
     conn = None
     try:
         conn = get_game_db_connection()
         c = conn.cursor()
 
-        # Recetas no bloqueadas
-        c.execute("SELECT * FROM recetas WHERE bloqueada = 0")
-        recetas_disponibles = c.fetchall()
-
-        # Recetas bloqueadas
-        c.execute("SELECT id, nombre, categoria FROM recetas WHERE bloqueada = 1")
-        recetas_bloqueadas = c.fetchall()
-
-        # Convertir a formato JSON
+        # VULNERABILIDAD: SQL Injection en búsqueda - consulta simple
+        query = f"SELECT * FROM recetas WHERE nombre LIKE '%{busqueda}%'"
+        
+        c.execute(query)
+        recetas = c.fetchall()
+        
         recetas_json = []
-        for receta in recetas_disponibles:
+        for receta in recetas:
             recetas_json.append({
                 'id': receta[0],
                 'nombre': receta[1],
@@ -35,30 +35,21 @@ def api_dashboard():
                 'created_at': receta[8]
             })
 
-        bloqueadas_json = []
-        for receta in recetas_bloqueadas:
-            bloqueadas_json.append({
-                'id': receta[0],
-                'nombre': receta[1],
-                'categoria': receta[2]
-            })
+        response_data = {'success': True, 'recetas': recetas_json}
 
-        # Log del acceso al dashboard
-        log_event("DASHBOARD_ACCESS", f"Usuario {session.get('username')} accedió al dashboard", session.get('user_id'))
+        # Detectar SQL Injection de forma más simple
+        if "'" in busqueda or "--" in busqueda or "OR '1'='1'" in busqueda.upper():
+            response_data['flag'] = 'SQL2_FLAG_3y8fE1gH'
+            response_data['message'] = '¡SQL Injection en búsqueda detectado! Flag: SQL2_FLAG_3y8fE1gH'
+            response_data['vulnerability'] = 'SQL Injection - Búsqueda'
+            response_data['points'] = 100
 
-        return jsonify({
-            'success': True,
-            'recetas': recetas_json,
-            'bloqueadas': bloqueadas_json,
-            'user': {
-                'id': session.get('user_id'),
-                'username': session.get('username'),
-                'role': session.get('role')
-            }
-        })
+        log_event("BUSQUEDA_RECETAS", f"Usuario {session.get('username')} buscó: '{busqueda}' - Resultados: {len(recetas_json)}", session.get('user_id'))
+
+        return jsonify(response_data)
 
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
+        return jsonify({'success': False, 'message': f'Error en la búsqueda: {str(e)}'})
     finally:
         if conn:
             conn.close()
@@ -195,62 +186,3 @@ def api_desbloquear_receta(receta_id):
         if conn:
             conn.close()
 
-@recetas_bp.route('/buscar', methods=['POST'])
-@requires_auth
-def api_buscar():
-    data = request.get_json()
-    busqueda = data.get('busqueda', '')
-
-    # VULNERABILIDAD: SQL Injection en búsqueda
-    query = f"SELECT * FROM recetas WHERE (nombre LIKE '%{busqueda}%' OR ingredientes LIKE '%{busqueda}%' OR categoria LIKE '%{busqueda}%') AND bloqueada = 0"
-
-    conn = None
-    try:
-        conn = get_game_db_connection()
-        c = conn.cursor()
-        
-        c.execute(query)
-        recetas = c.fetchall()
-        
-        recetas_json = []
-        for receta in recetas:
-            recetas_json.append({
-                'id': receta[0],
-                'nombre': receta[1],
-                'ingredientes': receta[2],
-                'instrucciones': receta[3],
-                'bloqueada': bool(receta[4]),
-                'password_bloqueo': receta[5],
-                'categoria': receta[6],
-                'user_id': receta[7],
-                'created_at': receta[8]
-            })
-
-        # Si se detecta SQL Injection en la búsqueda, proporcionar flag
-        response_data = {'success': True, 'recetas': recetas_json}
-
-        sql_injection_detected = (
-            "'" in busqueda or
-            "UNION" in busqueda.upper() or
-            "SELECT" in busqueda.upper() or
-            "INSERT" in busqueda.upper() or
-            "DELETE" in busqueda.upper() or
-            "UPDATE" in busqueda.upper() or
-            "DROP" in busqueda.upper() or
-            "--" in busqueda or
-            ";" in busqueda
-        )
-
-        if sql_injection_detected:
-            response_data['flag'] = 'SQL2_FLAG_456'
-            response_data['message'] = '¡SQL Injection en búsqueda detectado! Flag: SQL2_FLAG_456'
-
-        log_event("BUSQUEDA_RECETAS", f"Usuario {session.get('username')} buscó: '{busqueda}' - Resultados: {len(recetas_json)}", session.get('user_id'))
-
-        return jsonify(response_data)
-
-    except Exception as e:
-        return jsonify({'success': False, 'message': f'Error en la búsqueda: {str(e)}'})
-    finally:
-        if conn:
-            conn.close()

@@ -50,32 +50,44 @@ export const GameProvider = ({ children }) => {
     }
   };
 
+  // En GameContext.jsx, actualiza la función submitFlag:
+
   const submitFlag = async (flagHash) => {
-    if (!gamePlayer) return { success: false, error: 'Jugador no registrado' };
-    
-    try {
-      const result = await ApiService.submitFlag(gamePlayer.id, flagHash);
-      if (result.success) {
-        // Update player score
-        setGamePlayer(prev => ({
-          ...prev,
-          total_score: prev.total_score + result.points
-        }));
-        
-        // Add to flags
-        setFlags(prev => [...prev, {
-          flag: flagHash,
-          points: result.points,
-          vulnerability: result.vulnerability,
-          timestamp: new Date().toISOString()
-        }]);
-        
-        return { success: true, data: result };
+      if (!gamePlayer) return { success: false, error: 'Jugador no registrado' };
+      
+      try {
+          const result = await ApiService.submitFlag(flagHash);
+          
+          if (result.success) {
+              // Update player score
+              setGamePlayer(prev => ({
+                  ...prev,
+                  total_score: prev.total_score + result.points
+              }));
+              
+              // Add to flags
+              const newFlag = {
+                  flag: flagHash,
+                  points: result.points,
+                  vulnerability: result.vulnerability,
+                  timestamp: new Date().toISOString()
+              };
+              
+              setFlags(prev => [...prev, newFlag]);
+              
+              // Update localStorage
+              const updatedPlayer = {
+                  ...gamePlayer,
+                  total_score: gamePlayer.total_score + result.points
+              };
+              localStorage.setItem('gamePlayer', JSON.stringify(updatedPlayer));
+              
+              return { success: true, data: result };
+          }
+          return { success: false, error: result.message };
+      } catch (error) {
+          return { success: false, error: error.message };
       }
-      return { success: false, error: result.message };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
   };
 
   const loadLeaderboard = async () => {
