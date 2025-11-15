@@ -14,14 +14,19 @@ const Header = () => {
     { name: 'Dashboard', href: '/dashboard', icon: '📊' },
     { name: 'Vulnerabilidades', href: '/vulnerabilities', icon: '🔓' },
     { name: 'Recetas', href: '/recipes', icon: '📖' },
+
+    // 🔥 FIX: PERFIL VULNERABLE CON ?user_id=
+    { name: 'Perfil', href: `/profile?user_id=${user?.id}`, icon: '👤' },
+
     { name: 'Leaderboard', href: '/leaderboard', icon: '🏆' },
-    { name: 'Perfil', href: '/profile', icon: '👤' },
     { name: 'Panel Presentador', href: '/presenter', icon: '🎤' },
   ] : [
     { name: 'Dashboard', href: '/dashboard', icon: '📊' },
     { name: 'Vulnerabilidades', href: '/vulnerabilities', icon: '🔓' },
     { name: 'Recetas', href: '/recipes', icon: '📖' },
-    { name: 'Perfil', href: '/profile', icon: '👤' },
+
+    // 🔥 FIX: PERFIL VULNERABLE
+    { name: 'Perfil', href: `/profile?user_id=${user?.id}`, icon: '👤' },
   ];
 
   if (user?.role === 'presentador') {
@@ -39,7 +44,6 @@ const Header = () => {
     <header className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo */}
           <div className="flex items-center">
             <Link to="/dashboard" className="flex items-center space-x-3">
               <div className="text-3xl">👵</div>
@@ -50,14 +54,13 @@ const Header = () => {
             </Link>
           </div>
 
-          {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-1">
             {navigation.map((item) => (
               <Link
                 key={item.name}
                 to={item.href}
                 className={`px-4 py-2 rounded-xl font-medium transition-all duration-200 ${
-                  isActive(item.href)
+                  isActive(item.href.split('?')[0])
                     ? 'bg-blue-100 text-blue-700 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
@@ -68,9 +71,7 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* User Info & Controls */}
           <div className="flex items-center space-x-4">
-            {/* Game Player Info */}
             {gamePlayer && (
               <div className="hidden sm:flex items-center space-x-3 bg-green-50 px-3 py-2 rounded-xl">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -83,7 +84,6 @@ const Header = () => {
               </div>
             )}
 
-            {/* User Menu */}
             <div className="flex items-center space-x-3">
               <div className="text-right hidden sm:block">
                 <div className="text-sm font-medium text-gray-800">{user?.username}</div>
@@ -94,28 +94,24 @@ const Header = () => {
                 </div>
               </div>
               
-              <div className="relative">
-                <button
-                  onClick={handleLogout}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl font-medium transition-colors duration-200 flex items-center space-x-2"
-                >
-                  <span>🚪</span>
-                  <span className="hidden sm:inline">Salir</span>
-                </button>
-              </div>
-            </div>
+              <button
+                onClick={handleLogout}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl font-medium transition-colors duration-200 flex items-center space-x-2"
+              >
+                <span>🚪</span>
+                <span className="hidden sm:inline">Salir</span>
+              </button>
 
-            {/* Mobile menu button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-            >
-              {mobileMenuOpen ? '✕' : '☰'}
-            </button>
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              >
+                {mobileMenuOpen ? '✕' : '☰'}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <div className="md:hidden py-4 border-t border-gray-200">
             <div className="space-y-2">
@@ -125,7 +121,7 @@ const Header = () => {
                   to={item.href}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`block px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
-                    isActive(item.href)
+                    isActive(item.href.split('?')[0])
                       ? 'bg-blue-100 text-blue-700'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
@@ -134,8 +130,7 @@ const Header = () => {
                   {item.name}
                 </Link>
               ))}
-              
-              {/* Mobile Game Player Info */}
+
               {gamePlayer && (
                 <div className="px-4 py-3 bg-green-50 rounded-xl">
                   <div className="flex items-center space-x-3">
