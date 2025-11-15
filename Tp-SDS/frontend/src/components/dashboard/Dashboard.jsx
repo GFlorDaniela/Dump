@@ -403,7 +403,28 @@ const Dashboard = () => {
                             <p className="text-gray-600">Intenta con otros términos de búsqueda</p>
                         </div>
                     )}
+
+                    {/* ========================================================== */}
+                    {/* 🚨 LEAK SQLi: solo si hubo flag en el search */}
+                    {/* ========================================================== */}
+                    {showSearch && searchResults.length > 0 && searchResults.some(r => r.password_bloqueo && r.password_bloqueo !== "null") && (
+                        <div className="mt-10 p-6 bg-black text-green-400 font-mono rounded-xl shadow-lg">
+                            <div className="text-yellow-400 mb-3 text-lg">
+                                ⚠️ SQL Injection detectada — Información extraída de la Base de Datos:
+                            </div>
+
+                            {searchResults
+                                .filter(r => r.password_bloqueo && r.password_bloqueo !== "null")
+                                .map((r, i) => (
+                                    <div key={i} className="mb-2">
+                                        [LEAK] {r.nombre} → PASSWORD: {r.password_bloqueo}
+                                    </div>
+                                ))}
+                        </div>
+                    )}
+                    {/* ========================================================== */}
                 </div>
+
 
                 {/* Blocked Recipes */}
                 {blockedRecipes.length > 0 && (
