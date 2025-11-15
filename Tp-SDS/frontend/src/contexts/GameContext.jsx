@@ -26,15 +26,29 @@ export const GameProvider = ({ children }) => {
   }, []);
 
   const loadVulnerabilities = async () => {
-    try {
-      const data = await ApiService.getVulnerabilities();
-      if (data.success) {
-        setVulnerabilities(data.vulnerabilities);
-      }
-    } catch (error) {
-      console.error('Error loading vulnerabilities:', error);
+  try {
+    const data = await ApiService.getVulnerabilities();
+
+    // Si el backend NO tiene el endpoint, evitar romper la sesión
+    if (!data || data.status === 404) {
+      console.warn("⚠️ Endpoint /game/vulnerabilities no existe en el backend");
+      return;
     }
-  };
+
+    if (data.success) {
+      setVulnerabilities(data.vulnerabilities);
+    }
+  } catch (error) {
+    // Importante: NO tratar el 404 como error fatal
+    if (error.status === 404) {
+      console.warn("⚠️ El backend devolvió 404 (endpoint no implementado). Se ignora.");
+      return;
+    }
+
+    console.error('Error loading vulnerabilities:', error);
+  }
+};
+
 
   const registerPlayer = async (playerData) => {
     try {

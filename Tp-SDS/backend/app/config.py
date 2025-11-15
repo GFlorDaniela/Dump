@@ -2,7 +2,7 @@ import os
 import secrets
 
 class Config:
-    SECRET_KEY = secrets.token_hex(32)
+    SECRET_KEY = os.getenv("SECRET_KEY", "MI_CLAVE_SECRETA_SEGURA_Y_FIJA")
     
     # DOS BASES DE DATOS SEPARADAS
     USERS_DATABASE = 'data/users.db'      # Datos reales - SEGURO
