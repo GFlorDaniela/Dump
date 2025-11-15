@@ -17,7 +17,8 @@ const SQLInjectionLab = () => {
     setLoading(true);
     try {
       // Simulación de búsqueda vulnerable a SQL Injection
-      const response = await fetch(`http://localhost:5000/api/search?q=${encodeURIComponent(searchTerm)}`);
+      //const response = await fetch(`http://localhost:5000/api/search?q=${encodeURIComponent(searchTerm)}`);
+      const response = await ApiService.searchRecipes(searchTerm);
       const data = await response.json();
       
       setResults(data.recetas || []);
