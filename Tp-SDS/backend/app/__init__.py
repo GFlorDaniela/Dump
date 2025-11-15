@@ -2,42 +2,57 @@ from flask import Flask
 from flask_cors import CORS
 from .config import Config
 
+from flask import Flask
+from .config import Config
+from .models.database import init_databases
+from flask_cors import CORS
+
+# Importar Blueprints existentes (deducidos de tu estructura de rutas)
+from .routes.auth import auth_bp
+from .routes.game import game_bp
+from .routes.recetas import recetas_bp
+from .routes.logs import logs_bp
+from .routes.perfil import perfil_bp
+from .routes.presentadores import presentadores_bp
+from .routes.vulnerabilities import vuln_bp
+
+# 💥 NUEVA IMPORTACIÓN (para solucionar el error del Dashboard) 💥
+from .routes.dashboard import dashboard_bp 
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
     
-    # Configurar CORS
-    CORS(app, 
-         supports_credentials=True,
-         origins=Config.CORS_ORIGINS,
-         methods=Config.CORS_METHODS)
+    # Inicializar CORS (Cross-Origin Resource Sharing)
+    CORS(app, supports_credentials=True)
+
+    # Inicializar las bases de datos (si no existen)
+    # Esto debe ejecutarse dentro del contexto de la aplicación
+    with app.app_context():
+        init_databases()
+
+    # --- Registrar Blueprints (Rutas API) ---
     
-    # Inicializar bases de datos
-    from .models.database import init_databases
-    init_databases()
-    
-    # Registrar blueprints
-    from .routes.auth import auth_bp
-    from .routes.game import game_bp
-    from .routes.vulnerabilities import vuln_bp
-    from .routes.presentadores import presentadores_bp
-    from .routes.recetas import recetas_bp
-    from .routes.perfil import perfil_bp
-    from .routes.logs import logs_bp
-    
+    # Rutas de autenticación
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    
+    # Rutas de juego (game, submit-flag, weak-auth, sql-injection-login, etc.)
     app.register_blueprint(game_bp, url_prefix='/api/game')
-    app.register_blueprint(vuln_bp, url_prefix='/api/vuln')
-    app.register_blueprint(presentadores_bp, url_prefix='/api/presentador')
-    app.register_blueprint(recetas_bp, url_prefix='/api')
-    app.register_blueprint(perfil_bp, url_prefix='/api')
+    
+    # Rutas de recetas, logs y perfiles (usan prefijo /api)
+    app.register_blueprint(recetas_bp, url_prefix='/api') 
     app.register_blueprint(logs_bp, url_prefix='/api')
+    app.register_blueprint(perfil_bp, url_prefix='/api')
     
-    # Registrar rutas básicas
-    register_basic_routes(app)
+    # Rutas de presentador
+    app.register_blueprint(presentadores_bp, url_prefix='/api/presentador')
     
-    # Registrar manejadores de error
-    register_error_handlers(app)
+    # Rutas de información de vulnerabilidades
+    app.register_blueprint(vuln_bp, url_prefix='/api/vulnerabilities')
+    
+    # 💥 REGISTRO DEL DASHBOARD FALTANTE 💥
+    # Permite al frontend acceder a /api/dashboard
+    app.register_blueprint(dashboard_bp, url_prefix='/api') 
     
     return app
 

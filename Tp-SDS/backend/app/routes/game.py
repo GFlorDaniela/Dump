@@ -303,7 +303,8 @@ def information_disclosure():
     c = conn.cursor()
 
     # VULNERABILIDAD: Exponer logs sensibles
-    c.execute("SELECT * FROM system_logs ORDER BY timestamp DESC LIMIT 10")
+    # 💥 CAMBIO CRÍTICO: Eliminar LIMIT 10 para garantizar que TODOS los logs se carguen.
+    c.execute("SELECT * FROM system_logs ORDER BY timestamp DESC")
     logs = c.fetchall()
 
     logs_data = []
