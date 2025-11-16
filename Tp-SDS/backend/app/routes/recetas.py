@@ -25,13 +25,16 @@ def api_buscar():
         
         recetas_json = []
         for receta in recetas:
+            # ✅ CORREGIDO: No mostrar password_bloqueo si la receta está desbloqueada
+            password_bloqueo = receta[5] if receta[4] == 1 else None  # receta[4] es bloqueada
+            
             recetas_json.append({
                 'id': receta[0],
                 'nombre': receta[1],
                 'ingredientes': receta[2],
                 'instrucciones': receta[3],
                 'bloqueada': bool(receta[4]),
-                'password_bloqueo': receta[5],
+                'password_bloqueo': password_bloqueo,  # ✅ Solo si está bloqueada
                 'categoria': receta[6],
                 'user_id': receta[7],
                 'created_at': receta[8]
@@ -55,7 +58,6 @@ def api_buscar():
     finally:
         if conn:
             conn.close()
-
 
 # -------------------------------------
 # LISTAR TODAS LAS RECETAS DESBLOQUEADAS
@@ -137,7 +139,7 @@ def api_receta(receta_id):
 
 
 # -------------------------------------
-# DESBLOQUEAR RECETA (contraseña débil)
+# DESBLOQUEAR RECETA (contraseña débil) - CORREGIDO
 # -------------------------------------
 @recetas_bp.route('/desbloquear_receta/<int:receta_id>', methods=['POST'])
 @requires_auth
@@ -157,17 +159,29 @@ def api_desbloquear_receta(receta_id):
             return jsonify({'success': False, 'message': 'Receta no encontrada'})
 
         # Comparación directa (vulnerable intencionalmente)
-        if password == receta[5]:
+        if password == receta[5]:  # receta[5] es password_bloqueo
+            # ✅ CORREGIDO: ACTUALIZAR LA BASE DE DATOS
+            c.execute("""
+                UPDATE recetas 
+                SET bloqueada = 0 
+                WHERE id = ?
+            """, (receta_id,))
+            conn.commit()
+            
+            # Obtener la receta actualizada
+            c.execute("SELECT * FROM recetas WHERE id = ?", (receta_id,))
+            receta_actualizada = c.fetchone()
+            
             receta_json = {
-                'id': receta[0],
-                'nombre': receta[1],
-                'ingredientes': receta[2],
-                'instrucciones': receta[3],
-                'bloqueada': bool(receta[4]),
-                'password_bloqueo': receta[5],
-                'categoria': receta[6],
-                'user_id': receta[7],
-                'created_at': receta[8]
+                'id': receta_actualizada[0],
+                'nombre': receta_actualizada[1],
+                'ingredientes': receta_actualizada[2],
+                'instrucciones': receta_actualizada[3],
+                'bloqueada': bool(receta_actualizada[4]),  # Ahora será False
+                'password_bloqueo': receta_actualizada[5],
+                'categoria': receta_actualizada[6],
+                'user_id': receta_actualizada[7],
+                'created_at': receta_actualizada[8]
             }
 
             flag = None

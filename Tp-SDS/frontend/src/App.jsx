@@ -32,13 +32,19 @@ const AppContent = () => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <LoadingSpinner message="Verificando autenticación..." />;
+    return (
+      <div className="w-full min-h-screen flex items-center justify-center bg-gray-50">
+        <LoadingSpinner message="Verificando autenticación..." />
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
+    // ✅ CAMBIA ESTA LÍNEA - Añade w-full y overflow-hidden
+    <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col overflow-hidden">
       {user && <Header />}
-      <main className="flex-1">
+      {/* ✅ AÑADE w-full aquí también */}
+      <main className="flex-1 w-full">
         <Routes>
           {!user ? (
             // Routes for non-authenticated users
@@ -76,15 +82,18 @@ const AppContent = () => {
 
 function App() {
   return (
-    <Router>
-      <NotificationProvider>
-        <AuthProvider>
-          <GameProvider>
-            <AppContent />
-          </GameProvider>
-        </AuthProvider>
-      </NotificationProvider>
-    </Router>
+    // ✅ AÑADE un div contenedor con ancho completo
+    <div className="w-full">
+      <Router>
+        <NotificationProvider>
+          <AuthProvider>
+            <GameProvider>
+              <AppContent />
+            </GameProvider>
+          </AuthProvider>
+        </NotificationProvider>
+      </Router>
+    </div>
   );
 }
 

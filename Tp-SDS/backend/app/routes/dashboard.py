@@ -49,11 +49,25 @@ def api_dashboard():
 
         log_event("DASHBOARD_LOAD", f"Usuario {user['username']} cargó dashboard", user["id"])
 
+        c.execute("SELECT * FROM system_logs ORDER BY timestamp DESC LIMIT 10")
+        logs = c.fetchall()
+
+        logs_json = []
+        for log in logs:
+            logs_json.append({
+                'id': log['id'],
+                'timestamp': log['timestamp'],
+                'event': log['event'],
+                'details': log['details'],
+                'user_id': log['user_id']
+            })
+
         return jsonify({
             'success': True,
             'user': user,
             'recetas': recetas_disponibles,
-            'bloqueadas': recetas_bloqueadas
+            'bloqueadas': recetas_bloqueadas,
+            'logs': logs_json
         })
 
     except Exception as e:

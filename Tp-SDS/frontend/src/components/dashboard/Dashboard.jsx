@@ -7,61 +7,30 @@ import ApiService from '../../services/api';
 import LoadingSpinner from '../ui/LoadingSpinner';
 
 // =================================================================
-// 💥 SUBCOMPONENTE DE LOGS CORREGIDO (Solo Carga, sin Notificación de Flag) 💥
-const SystemLogsSection = ({ gamePlayer }) => {
-    const [logs, setLogs] = useState([]);
+// 💥 SUBCOMPONENTE DE LOGS CORREGIDO
+const SystemLogsSection = ({ gamePlayer, logs }) => {
+    const [internalLogs, setInternalLogs] = useState([]);
     const [loading, setLoading] = useState(true);
-    const { showNotification } = useNotification();
-    // Ya no necesitamos submitFlag aquí
-    const { submitFlag } = useGame(); 
 
     useEffect(() => {
-        loadLogs();
-    }, []);
-
-    const loadLogs = async () => {
-        try {
-            // Llamamos al endpoint de vulnerabilidad para obtener TODOS los logs
-            // Este endpoint trae el objeto 'flag', pero lo ignoramos en la notificación aquí.
-            const data = await ApiService.testInformationDisclosure();
-            
-            let allLogs = data.logs || [];
-            
-            // 1. Logs de Pistas Fijas (CTF): IDs 1 a 5
-            const fixedCTFLogs = allLogs.filter(log => log.id <= 5)
-                                          .sort((a, b) => a.id - b.id); // Pistas ordenadas
-
-            // 2. Logs de Sesión Recientes: IDs > 5
-            const recentSessionLogs = allLogs.filter(log => log.id > 5)
-                                             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            
-            // 3. Combinamos: Recientes (arriba/variables) + Pistas Fijas (abajo/estáticas)
-            const finalLogs = [...recentSessionLogs, ...fixedCTFLogs];
-
-            setLogs(finalLogs);
-
-            // ❌ ELIMINAMOS LA LÓGICA DE NOTIFICACIÓN DE FLAG AQUÍ ❌
-            // La flag se obtiene, pero no se notifica automáticamente en el Dashboard.
-
-        } catch (error) {
-            console.error('Error loading logs:', error);
-        } finally {
+        if (logs) {
+            setInternalLogs(logs);
             setLoading(false);
         }
-    };
-
-    if (loading) {
-        return <div className="text-center py-4">Cargando logs...</div>;
-    }
+    }, [logs]);
 
     return (
         <div>
             {/* Contenedor de Logs */}
             <div className="bg-gray-50 rounded-2xl p-4 max-h-96 overflow-y-auto">
-                {logs.length > 0 ? (
+                {internalLogs.length > 0 ? (
                     <div className="space-y-3">
-                        {logs.map((log) => (
-                            <div key={log.id} className={`bg-white rounded-xl p-4 border border-gray-200 ${log.id <= 5 ? 'opacity-80 border-dashed border-red-300' : 'font-semibold'}`}>
+                        {internalLogs.map((log) => (
+                            <div key={log.id} 
+                                className={`bg-white rounded-xl p-4 border border-gray-200 ${
+                                    log.id <= 5 ? 'opacity-80 border-dashed border-red-300' : 'font-semibold'
+                                }`}
+                            >
                                 <div className="flex items-start justify-between mb-2">
                                     <span className="text-sm font-medium text-gray-500">{log.timestamp}</span>
                                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -78,17 +47,13 @@ const SystemLogsSection = ({ gamePlayer }) => {
                         ))}
                     </div>
                 ) : (
-                    <div className="text-center py-8 text-gray-500">
-                        No hay logs disponibles
-                    </div>
+                    <div className="text-center py-8 text-gray-500">No hay logs disponibles</div>
                 )}
             </div>
-            
-            {/* Sección de Vulnerabilidad (Footer) */}
+
             <div className="mt-4 p-4 bg-red-50 rounded-2xl border border-red-200">
                 <p className="text-red-700 text-center">
-                    ⚠️ <strong>VULNERABILIDAD:</strong> Los logs del sistema contienen información sensible 
-                    y deberían ser accesibles solo para administradores.
+                    ⚠️ <strong>VULNERABILIDAD:</strong> Los logs del sistema contienen información sensible.
                 </p>
                 {gamePlayer && (
                     <p className="text-green-700 text-center mt-2 font-semibold">
@@ -101,13 +66,13 @@ const SystemLogsSection = ({ gamePlayer }) => {
 };
 // =================================================================
 
-
 const Dashboard = () => {
     const [dashboardData, setDashboardData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [showSearch, setShowSearch] = useState(false);
+    const [logs, setLogs] = useState([]); // ✅ VARIABLE AÑADIDA AQUÍ
     
     const { user } = useAuth();
     const { gamePlayer, submitFlag } = useGame();
@@ -121,66 +86,138 @@ const Dashboard = () => {
         try {
             const data = await ApiService.getDashboard();
             setDashboardData(data);
+            setLogs(data.logs || []); // ✅ INICIALIZAR LOS LOGS AQUÍ
         } catch (error) {
+            console.error('Error loading dashboard:', error);
             showNotification('Error al cargar el dashboard', 'error');
+            
+            // ✅ MANEJO MEJORADO DE ERRORES DE CONEXIÓN
+            if (error.message?.includes('No se puede conectar al servidor') || error.status === 0) {
+                showNotification(
+                    'No se puede conectar al servidor. Verifica que el backend esté ejecutándose en el puerto 5000.', 
+                    'error'
+                );
+            }
         } finally {
             setLoading(false);
         }
     };
 
     const handleSearch = async (e) => {
-        e.preventDefault();
-        if (!searchTerm.trim()) return;
+    e.preventDefault();
+    if (!searchTerm.trim()) return;
 
-        try {
-            const results = await ApiService.searchRecipes(searchTerm);
-            setSearchResults(results.recetas || []);
-            setShowSearch(true);
+    try {
+        console.log('🔍 Ejecutando búsqueda:', searchTerm);
+        
+        const results = await ApiService.searchRecipes(searchTerm);
+        console.log('📦 Resultados CRUDOS del backend:', results);
+        
+        // ✅ VERIFICAR DIFERENTES FORMATOS DE RESPUESTA
+        const allRecipes = results.recetas || results.recipes || results.data || [];
+        console.log('🍽️ Recetas extraídas:', allRecipes);
+        
+        setSearchResults(allRecipes);
+        setShowSearch(true);
 
-            // ✅ NUEVO: Mostrar flag si viene en la respuesta (por SQLi)
-            if (results.flag) {
-                showNotification(`¡Vulnerabilidad encontrada! Flag: ${results.flag}`, 'success', 10000);
+        // Mostrar información de debug
+        if (allRecipes.length === 0) {
+            console.log('❌ No se encontraron recetas en la respuesta');
+            console.log('Estructura completa de la respuesta:', JSON.stringify(results, null, 2));
+        } else {
+            console.log(`✅ Encontradas ${allRecipes.length} recetas`);
+        }
+
+        // ✅ NUEVO: Mostrar flag si viene en la respuesta
+        if (results.flag) {
+            showNotification(`¡Vulnerabilidad encontrada! Flag: ${results.flag}`, 'success', 10000);
+            
+            if (gamePlayer) {
+                const flagResult = await submitFlag(results.flag);
+                if (flagResult.success) {
+                    showNotification(`+${flagResult.data.points} puntos!`, 'success');
+                }
+            }
+        }
+
+    } catch (error) {
+        console.error('❌ Error completo en búsqueda:', error);
+        showNotification('Error en la búsqueda', 'error');
+    }
+};
+
+    const handleUnlockRecipe = async (recipeId, password) => {
+    try {
+        const result = await ApiService.unlockRecipe(recipeId, password);
+        if (result.success) {
+            showNotification('¡Receta desbloqueada!', 'success');
+            
+            // Check for flag
+            if (result.flag) {
+                showNotification(`¡Flag encontrada! ${result.flag}`, 'success', 10000);
                 
-                // Auto-submit flag si es jugador
+                // Auto-submit flag if game player
                 if (gamePlayer) {
-                    const flagResult = await submitFlag(results.flag);
+                    const flagResult = await submitFlag(result.flag);
                     if (flagResult.success) {
                         showNotification(`+${flagResult.data.points} puntos!`, 'success');
                     }
                 }
             }
-        } catch (error) {
-            showNotification('Error en la búsqueda', 'error');
-        }
-    };
-
-    const handleUnlockRecipe = async (recipeId, password) => {
-        try {
-            const result = await ApiService.unlockRecipe(recipeId, password);
-            if (result.success) {
-                showNotification('¡Receta desbloqueada!', 'success');
+            
+            // ✅ ACTUALIZACIÓN VISUAL INMEDIATA MEJORADA
+            setDashboardData(prev => {
+                if (!prev) return prev;
                 
-                // Check for flag
-                if (result.flag) {
-                    showNotification(`¡Flag encontrada! ${result.flag}`, 'success', 10000);
-                    
-                    // Auto-submit flag if game player
-                    if (gamePlayer) {
-                        const flagResult = await submitFlag(result.flag);
-                        if (flagResult.success) {
-                            showNotification(`+${flagResult.data.points} puntos!`, 'success');
-                        }
-                    }
+                console.log('🔄 Actualizando estado local después de desbloquear receta:', recipeId);
+                
+                // Encontrar la receta que se acaba de desbloquear
+                const recipeToUnlock = prev.bloqueadas?.find(r => r.id === recipeId);
+                
+                if (!recipeToUnlock) {
+                    console.log('❌ No se encontró la receta para desbloquear en estado local');
+                    return prev;
                 }
                 
-                loadDashboard(); // Reload data
-            } else {
-                showNotification('Contraseña incorrecta', 'error');
+                // Crear versión desbloqueada
+                const unlockedRecipe = {
+                    ...recipeToUnlock,
+                    bloqueada: false
+                };
+                
+                console.log('✅ Receta desbloqueada localmente:', unlockedRecipe.nombre);
+                
+                return {
+                    ...prev,
+                    // Remover de bloqueadas
+                    bloqueadas: prev.bloqueadas?.filter(r => r.id !== recipeId) || [],
+                    // Agregar a disponibles
+                    recetas: [
+                        ...(prev.recetas || []),
+                        unlockedRecipe
+                    ]
+                };
+            });
+            
+            // ✅ También actualizar searchResults si estamos en búsqueda
+            if (showSearch) {
+                setSearchResults(prev => 
+                    prev.map(recipe => 
+                        recipe.id === recipeId 
+                            ? { ...recipe, bloqueada: false }
+                            : recipe
+                    )
+                );
             }
-        } catch (error) {
-            showNotification('Error al desbloquear receta', 'error');
+            
+        } else {
+            showNotification('Contraseña incorrecta', 'error');
         }
-    };
+    } catch (error) {
+        showNotification('Error al desbloquear receta', 'error');
+        console.error('Error desbloqueando receta:', error);
+    }
+};
 
     if (loading) {
         return <LoadingSpinner message="Cargando recetas secretas..." />;
@@ -313,6 +350,7 @@ const Dashboard = () => {
                                     loadDashboard(); // Recargar datos
                                     
                                 } catch (error) {
+                                    console.error('Vulnerability test error:', error);
                                     showNotification('Error al probar vulnerabilidades: ' + error.message, 'error');
                                 }
                             }}
@@ -425,7 +463,6 @@ const Dashboard = () => {
                     {/* ========================================================== */}
                 </div>
 
-
                 {/* Blocked Recipes */}
                 {blockedRecipes.length > 0 && (
                     <div className="mb-12">
@@ -450,13 +487,17 @@ const Dashboard = () => {
                         <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium"></span>
                     </div>
                     
-                    <SystemLogsSection gamePlayer={gamePlayer} />
+                    {/* ✅ CORREGIDO: pasar la variable logs correctamente */}
+                    <SystemLogsSection logs={logs} gamePlayer={gamePlayer} />
                 </div>
 
             </div>
         </div>
     );
 };
+
+// Los subcomponentes RecipeCard y BlockedRecipeCard se mantienen igual...
+// [Mantén aquí los componentes RecipeCard y BlockedRecipeCard sin cambios]
 
 // Subcomponent for Recipe Card
 const RecipeCard = ({ recipe, onUnlock, gamePlayer }) => {

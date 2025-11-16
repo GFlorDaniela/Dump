@@ -138,6 +138,24 @@ class ApiService {
     return api.get('/perfil', { params });
   }
 
+  // ✅ NUEVOS MÉTODOS PARA IDOR
+  editProfile(userId, profileData) {
+    return api.post('/perfil/editar', {
+      user_id: userId,
+      nombre: profileData.nombre,
+      apellido: profileData.apellido,
+      email: profileData.email
+    });
+  }
+
+  changePassword(userId, newPassword) {
+    return api.post('/perfil/cambiar-password', {
+      user_id: userId,
+      nueva_password: newPassword
+    });
+  }
+
+
   getSystemLogs() {
     return api.get('/logs');
   }
