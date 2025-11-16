@@ -19,8 +19,11 @@ def get_connection(db_path):
 # -------------------------------------
 # 🔐 LOGIN
 # -------------------------------------
-@auth_bp.route('/login', methods=['POST'])
+@auth_bp.route('/login', methods=['POST', 'OPTIONS'])
 def login():
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
+    
     data = request.get_json()
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
@@ -30,11 +33,18 @@ def login():
 
     conn = get_connection(USER_DB)
     cursor = conn.cursor()
+    
+    # 🔍 Buscar primero en presentadores, luego en jugadores
     cursor.execute("""
-        SELECT id, uuid, nickname, email, nombre, apellido, password_hash, role
-        FROM jugadores
+        SELECT id, uuid, nickname, email, nombre, apellido, password_hash, role, 'presentadores' as source_table
+        FROM presentadores 
         WHERE nickname = ?
-    """, (username,))
+        UNION ALL
+        SELECT id, uuid, nickname, email, nombre, apellido, password_hash, role, 'jugadores' as source_table  
+        FROM jugadores 
+        WHERE nickname = ?
+    """, (username, username))
+    
     user = cursor.fetchone()
     conn.close()
 
@@ -43,7 +53,7 @@ def login():
 
     stored_hash = user["password_hash"]
 
-    # bcrypt o werkzeug
+    # Verificar contraseña
     if stored_hash.startswith("$2b$"):
         if not bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
             return jsonify({'success': False, 'message': 'Contraseña incorrecta'}), 401
@@ -51,7 +61,12 @@ def login():
         if not check_password_hash(stored_hash, password):
             return jsonify({'success': False, 'message': 'Contraseña incorrecta'}), 401
 
-    public_id = f"U-{user['id']:04d}"
+    # Generar ID público basado en la tabla de origen
+    if user["source_table"] == "presentadores":
+        public_id = f"P-{user['id']:04d}"  # Prefijo para presentadores
+    else:
+        public_id = f"U-{user['id']:04d}"  # Prefijo para jugadores
+
     user_data = {
         'id': public_id,
         'numeric_id': user['id'],
@@ -60,7 +75,8 @@ def login():
         'email': user['email'],
         'nombre': user['nombre'],
         'apellido': user['apellido'],
-        'role': user['role']
+        'role': user['role'],
+        'source_table': user["source_table"]
     }
 
     # Guardar usuario en sesión
@@ -124,9 +140,24 @@ def register():
 def check_session():
     user = session.get("user")
     if user:
-        return jsonify({'success': True, 'usuario': user}), 200
+        # Verificar que el usuario aún existe en la base de datos
+        conn = get_connection(USER_DB)
+        cursor = conn.cursor()
+        
+        if user.get('source_table') == 'presentadores':
+            cursor.execute("SELECT id FROM presentadores WHERE id = ?", (user['numeric_id'],))
+        else:
+            cursor.execute("SELECT id FROM jugadores WHERE id = ?", (user['numeric_id'],))
+        
+        user_exists = cursor.fetchone()
+        conn.close()
+        
+        if user_exists:
+            return jsonify({'success': True, 'usuario': user}), 200
+        else:
+            session.clear()  # Usuario eliminado, limpiar sesión
+    
     return jsonify({'success': False, 'usuario': None}), 200
-
 
 # -------------------------------------
 # 🚪 LOGOUT
