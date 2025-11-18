@@ -72,7 +72,8 @@ const Dashboard = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [showSearch, setShowSearch] = useState(false);
-    const [logs, setLogs] = useState([]); // ✅ VARIABLE AÑADIDA AQUÍ
+    const [logs, setLogs] = useState([]);
+    const [currentScore, setCurrentScore] = useState(0); // ✅ NUEVO: Estado para score actualizado
     
     const { user } = useAuth();
     const { gamePlayer, submitFlag } = useGame();
@@ -82,16 +83,50 @@ const Dashboard = () => {
         loadDashboard();
     }, []);
 
+    // ✅ NUEVO: Cargar score actualizado cuando gamePlayer cambia
+    useEffect(() => {
+        const loadCurrentScore = async () => {
+            if (gamePlayer) {
+                try {
+                    console.log('🏆 Dashboard: Cargando score actualizado...');
+                    const leaderboardData = await ApiService.getLeaderboard(1, 100);
+                    
+                    if (leaderboardData?.leaderboard && Array.isArray(leaderboardData.leaderboard)) {
+                        const currentUserInLeaderboard = leaderboardData.leaderboard.find(player => 
+                            player.id === user?.id || 
+                            player.email === user?.email || 
+                            player.username === user?.username
+                        );
+                        
+                        if (currentUserInLeaderboard) {
+                            setCurrentScore(currentUserInLeaderboard.total_score || 0);
+                            console.log('🎯 Dashboard: Score actualizado:', currentUserInLeaderboard.total_score);
+                        } else {
+                            setCurrentScore(gamePlayer.total_score || 0);
+                            console.log('⚠️ Dashboard: Usuario no encontrado en leaderboard');
+                        }
+                    } else {
+                        setCurrentScore(gamePlayer.total_score || 0);
+                    }
+                } catch (error) {
+                    console.log('❌ Dashboard: Error cargando score, usando valor por defecto');
+                    setCurrentScore(gamePlayer.total_score || 0);
+                }
+            }
+        };
+
+        loadCurrentScore();
+    }, [gamePlayer, user?.id, user?.email, user?.username]);
+
     const loadDashboard = async () => {
         try {
             const data = await ApiService.getDashboard();
             setDashboardData(data);
-            setLogs(data.logs || []); // ✅ INICIALIZAR LOS LOGS AQUÍ
+            setLogs(data.logs || []);
         } catch (error) {
             console.error('Error loading dashboard:', error);
             showNotification('Error al cargar el dashboard', 'error');
             
-            // ✅ MANEJO MEJORADO DE ERRORES DE CONEXIÓN
             if (error.message?.includes('No se puede conectar al servidor') || error.status === 0) {
                 showNotification(
                     'No se puede conectar al servidor. Verifica que el backend esté ejecutándose en el puerto 5000.', 
@@ -113,14 +148,12 @@ const Dashboard = () => {
         const results = await ApiService.searchRecipes(searchTerm);
         console.log('📦 Resultados CRUDOS del backend:', results);
         
-        // ✅ VERIFICAR DIFERENTES FORMATOS DE RESPUESTA
         const allRecipes = results.recetas || results.recipes || results.data || [];
         console.log('🍽️ Recetas extraídas:', allRecipes);
         
         setSearchResults(allRecipes);
         setShowSearch(true);
 
-        // Mostrar información de debug
         if (allRecipes.length === 0) {
             console.log('❌ No se encontraron recetas en la respuesta');
             console.log('Estructura completa de la respuesta:', JSON.stringify(results, null, 2));
@@ -128,7 +161,6 @@ const Dashboard = () => {
             console.log(`✅ Encontradas ${allRecipes.length} recetas`);
         }
 
-        // ✅ NUEVO: Mostrar flag si viene en la respuesta
         if (results.flag) {
             showNotification(`¡Vulnerabilidad encontrada! Flag: ${results.flag}`, 'success', 10000);
             
@@ -136,6 +168,8 @@ const Dashboard = () => {
                 const flagResult = await submitFlag(results.flag);
                 if (flagResult.success) {
                     showNotification(`+${flagResult.data.points} puntos!`, 'success');
+                    // ✅ ACTUALIZAR SCORE DESPUÉS DE CAPTURAR FLAG
+                    loadCurrentScore();
                 }
             }
         }
@@ -152,26 +186,24 @@ const Dashboard = () => {
         if (result.success) {
             showNotification('¡Receta desbloqueada!', 'success');
             
-            // Check for flag
             if (result.flag) {
                 showNotification(`¡Flag encontrada! ${result.flag}`, 'success', 10000);
                 
-                // Auto-submit flag if game player
                 if (gamePlayer) {
                     const flagResult = await submitFlag(result.flag);
                     if (flagResult.success) {
                         showNotification(`+${flagResult.data.points} puntos!`, 'success');
+                        // ✅ ACTUALIZAR SCORE DESPUÉS DE CAPTURAR FLAG
+                        loadCurrentScore();
                     }
                 }
             }
             
-            // ✅ ACTUALIZACIÓN VISUAL INMEDIATA MEJORADA
             setDashboardData(prev => {
                 if (!prev) return prev;
                 
                 console.log('🔄 Actualizando estado local después de desbloquear receta:', recipeId);
                 
-                // Encontrar la receta que se acaba de desbloquear
                 const recipeToUnlock = prev.bloqueadas?.find(r => r.id === recipeId);
                 
                 if (!recipeToUnlock) {
@@ -179,7 +211,6 @@ const Dashboard = () => {
                     return prev;
                 }
                 
-                // Crear versión desbloqueada
                 const unlockedRecipe = {
                     ...recipeToUnlock,
                     bloqueada: false
@@ -189,9 +220,7 @@ const Dashboard = () => {
                 
                 return {
                     ...prev,
-                    // Remover de bloqueadas
                     bloqueadas: prev.bloqueadas?.filter(r => r.id !== recipeId) || [],
-                    // Agregar a disponibles
                     recetas: [
                         ...(prev.recetas || []),
                         unlockedRecipe
@@ -199,7 +228,6 @@ const Dashboard = () => {
                 };
             });
             
-            // ✅ También actualizar searchResults si estamos en búsqueda
             if (showSearch) {
                 setSearchResults(prev => 
                     prev.map(recipe => 
@@ -218,6 +246,35 @@ const Dashboard = () => {
         console.error('Error desbloqueando receta:', error);
     }
 };
+
+    // ✅ NUEVO: Función para cargar el score actualizado
+    const loadCurrentScore = async () => {
+        if (gamePlayer) {
+            try {
+                console.log('🏆 Actualizando score...');
+                const leaderboardData = await ApiService.getLeaderboard(1, 100);
+                
+                if (leaderboardData?.leaderboard && Array.isArray(leaderboardData.leaderboard)) {
+                    const currentUserInLeaderboard = leaderboardData.leaderboard.find(player => 
+                        player.id === user?.id || 
+                        player.email === user?.email || 
+                        player.username === user?.username
+                    );
+                    
+                    if (currentUserInLeaderboard) {
+                        setCurrentScore(currentUserInLeaderboard.total_score || 0);
+                    } else {
+                        setCurrentScore(gamePlayer.total_score || 0);
+                    }
+                } else {
+                    setCurrentScore(gamePlayer.total_score || 0);
+                }
+            } catch (error) {
+                console.log('❌ Error actualizando score:', error);
+                setCurrentScore(gamePlayer.total_score || 0);
+            }
+        }
+    };
 
     if (loading) {
         return <LoadingSpinner message="Cargando recetas secretas..." />;
@@ -241,7 +298,7 @@ const Dashboard = () => {
                     </p>
                 </div>
 
-                {/* Game Player Stats */}
+                {/* Game Player Stats - ACTUALIZADO con currentScore */}
                 {gamePlayer && (
                     <div className="bg-white rounded-3xl shadow-2xl p-6 mb-8 border-2 border-green-200">
                         <div className="flex flex-col lg:flex-row items-center justify-between">
@@ -251,12 +308,12 @@ const Dashboard = () => {
                                     <h3 className="text-2xl font-bold text-gray-800">{gamePlayer.nickname}</h3>
                                     <div className="flex items-center space-x-4 mt-2">
                                         <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full font-semibold">
-                                            {gamePlayer.total_score} puntos
+                                            {currentScore} puntos {/* ✅ USAR currentScore */}
                                         </span>
                                         <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                                            Nivel: {gamePlayer.total_score >= 500 ? 'Hacker Senior' : 
-                                                    gamePlayer.total_score >= 300 ? 'Hacker Intermedio' : 
-                                                    gamePlayer.total_score >= 100 ? 'Hacker Junior' : 'Novato'}
+                                            Nivel: {currentScore >= 500 ? 'Hacker Senior' : 
+                                                    currentScore >= 300 ? 'Hacker Intermedio' : 
+                                                    currentScore >= 100 ? 'Hacker Junior' : 'Novato'}
                                         </span>
                                     </div>
                                 </div>
@@ -310,6 +367,7 @@ const Dashboard = () => {
                                         const flagResult = await submitFlag(sqlInjectionLogin.flag);
                                         if (flagResult.success) {
                                             showNotification(`✅ SQL Injection Login: +${flagResult.data.points} puntos`, 'success');
+                                            loadCurrentScore(); // ✅ ACTUALIZAR SCORE
                                         }
                                     }
 
@@ -320,6 +378,7 @@ const Dashboard = () => {
                                         const flagResult = await submitFlag(sqlInjectionSearch.flag);
                                         if (flagResult.success) {
                                             showNotification(`✅ SQL Injection Búsqueda: +${flagResult.data.points} puntos`, 'success');
+                                            loadCurrentScore(); // ✅ ACTUALIZAR SCORE
                                         }
                                     }
 
@@ -330,6 +389,7 @@ const Dashboard = () => {
                                         const flagResult = await submitFlag(infoDisclosure.flag);
                                         if (flagResult.success) {
                                             showNotification(`✅ Information Disclosure: +${flagResult.data.points} puntos`, 'success');
+                                            loadCurrentScore(); // ✅ ACTUALIZAR SCORE
                                         }
                                     }
 
@@ -343,11 +403,12 @@ const Dashboard = () => {
                                         const flagResult = await submitFlag(weakAuth.flag);
                                         if (flagResult.success) {
                                             showNotification(`✅ Weak Authentication: +${flagResult.data.points} puntos`, 'success');
+                                            loadCurrentScore(); // ✅ ACTUALIZAR SCORE
                                         }
                                     }
 
                                     showNotification('¡Todas las vulnerabilidades probadas! Revisa tu puntuación.', 'success');
-                                    loadDashboard(); // Recargar datos
+                                    loadDashboard();
                                     
                                 } catch (error) {
                                     console.error('Vulnerability test error:', error);
@@ -371,6 +432,7 @@ const Dashboard = () => {
                     </div>
                 )}
 
+                {/* Resto del componente se mantiene igual... */}
                 {/* Search Section */}
                 <div className="bg-white rounded-3xl shadow-xl p-6 mb-8">
                     <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
@@ -442,9 +504,7 @@ const Dashboard = () => {
                         </div>
                     )}
 
-                    {/* ========================================================== */}
-                    {/* 🚨 LEAK SQLi: solo si hubo flag en el search */}
-                    {/* ========================================================== */}
+                    {/* LEAK SQLi */}
                     {showSearch && searchResults.length > 0 && searchResults.some(r => r.password_bloqueo && r.password_bloqueo !== "null") && (
                         <div className="mt-10 p-6 bg-black text-green-400 font-mono rounded-xl shadow-lg">
                             <div className="text-yellow-400 mb-3 text-lg">
@@ -460,7 +520,6 @@ const Dashboard = () => {
                                 ))}
                         </div>
                     )}
-                    {/* ========================================================== */}
                 </div>
 
                 {/* Blocked Recipes */}
@@ -480,14 +539,13 @@ const Dashboard = () => {
                     </div>
                 )}
 
-                {/* System Logs - Information Disclosure Vulnerability */}
+                {/* System Logs */}
                 <div className="bg-white rounded-3xl shadow-xl p-6 mb-8">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-2xl font-bold text-gray-800">📋 Logs del Sistema</h3>
                         <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium"></span>
                     </div>
                     
-                    {/* ✅ CORREGIDO: pasar la variable logs correctamente */}
                     <SystemLogsSection logs={logs} gamePlayer={gamePlayer} />
                 </div>
 

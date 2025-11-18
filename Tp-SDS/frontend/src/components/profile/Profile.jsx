@@ -263,7 +263,7 @@ const Profile = () => {
           {/* Sidebar */}
           <div className="space-y-6">
 
-            {/* ✅ Quick Stats ACTUALIZADO con score real */}
+            {/* Summary */}
             <div className="bg-white rounded-3xl shadow-2xl p-6">
               <h3 className="font-semibold text-gray-800 mb-4">Resumen</h3>
               <div className="space-y-4">
@@ -315,7 +315,7 @@ const Profile = () => {
               </div>
             </div>
 
-            {/* ✅ Mensaje de seguridad */}
+            {/* Mensaje de seguridad */}
             {gamePlayer && (
               <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
                 <h4 className="font-semibold text-green-800 mb-2">🔒 Perfil Seguro</h4>
