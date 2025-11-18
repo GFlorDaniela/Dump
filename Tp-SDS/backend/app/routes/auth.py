@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify, session
 import sqlite3
 import bcrypt
 from werkzeug.security import generate_password_hash, check_password_hash
+import uuid
+from datetime import datetime
 
 # -----------------------------------------------------
 # 🔹 Blueprint con url_prefix para que React lo encuentre
@@ -88,33 +90,95 @@ def login():
 # -------------------------------------
 # 🆕 REGISTRO
 # -------------------------------------
-@auth_bp.route('/register', methods=['POST'])
+@auth_bp.route('/register', methods=['POST', 'OPTIONS'])
 def register():
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
+        
     data = request.get_json()
+    
+    print("🔍 === DATOS RECIBIDOS EN BACKEND ===")
+    print(f"📦 Data completa: {data}")
+    if data:
+        print("📊 Campos recibidos:")
+        for key in ['username', 'password', 'email', 'nombre', 'apellido']:
+            value = data.get(key)
+            if key == 'password':
+                print(f"   - {key}: {'***' if value else 'FALTANTE'}")
+            else:
+                print(f"   - {key}: '{value}'")
+    print("🔍 =================================")
+    
+    if not data:
+        return jsonify({
+            'success': False, 
+            'message': 'No se recibieron datos JSON'
+        }), 400
+        
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
     email = data.get('email', '').strip()
     nombre = data.get('nombre', '').strip()
     apellido = data.get('apellido', '').strip()
 
-    if not username or not password or not email:
-        return jsonify({'success': False, 'message': 'Faltan datos obligatorios'}), 400
+    # Validación
+    missing_fields = []
+    if not username: missing_fields.append('username')
+    if not password: missing_fields.append('password')
+    if not email: missing_fields.append('email')
+    if not nombre: missing_fields.append('nombre')
+    if not apellido: missing_fields.append('apellido')
+    
+    if missing_fields:
+        error_msg = f'Faltan campos obligatorios: {", ".join(missing_fields)}'
+        return jsonify({'success': False, 'message': error_msg}), 400
 
     conn = get_connection(USER_DB)
     cursor = conn.cursor()
+    
+    # Verificar si el usuario ya existe
     cursor.execute("SELECT id FROM jugadores WHERE nickname = ?", (username,))
     if cursor.fetchone():
         conn.close()
         return jsonify({'success': False, 'message': 'El nombre de usuario ya existe'}), 409
 
+    # Generar campos requeridos
+    user_uuid = str(uuid.uuid4())
+    created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    cursor.execute("""
-        INSERT INTO jugadores (uuid, nickname, nombre, apellido, email, password_hash, role)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (None, username, nombre, apellido, email, hashed_pw, "jugador"))
-    new_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    
+    try:
+        # 👇 INSERT con los campos EXACTOS de la tabla
+        cursor.execute("""
+            INSERT INTO jugadores 
+            (uuid, nickname, nombre, apellido, email, password_hash, role, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            user_uuid, 
+            username, 
+            nombre, 
+            apellido, 
+            email, 
+            hashed_pw, 
+            "jugador",  # role tiene valor por defecto pero lo incluimos por claridad
+            created_at
+        ))
+        
+        new_id = cursor.lastrowid
+        conn.commit()
+        print(f"✅ Usuario registrado exitosamente. ID: {new_id}")
+        
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        print(f"❌ Error en base de datos: {e}")
+        return jsonify({
+            'success': False, 
+            'message': f'Error al registrar usuario: {str(e)}'
+        }), 500
+        
+    finally:
+        conn.close()
 
     public_id = f"U-{new_id:04d}"
     usuario = {
@@ -130,7 +194,11 @@ def register():
     # Guardar usuario en sesión
     session['user'] = usuario
 
-    return jsonify({'success': True, 'usuario': usuario, 'message': 'Usuario registrado exitosamente'}), 201
+    return jsonify({
+        'success': True, 
+        'usuario': usuario, 
+        'message': 'Usuario registrado exitosamente'
+    }), 201
 
 
 # -------------------------------------

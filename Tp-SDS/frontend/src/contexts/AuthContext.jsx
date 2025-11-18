@@ -87,6 +87,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  
+
   // ---------- Actualizar usuario manualmente (opcional) ----------
   const updateUser = (newData) => {
     setUser((prev) => ({ ...prev, ...newData }));

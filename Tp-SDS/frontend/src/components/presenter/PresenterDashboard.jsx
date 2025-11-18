@@ -41,9 +41,6 @@ const PresenterDashboard = () => {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-800 mb-4">🎤 Panel de Presentador</h1>
-          <p className="text-xl text-gray-600">
-            Monitorea el progreso de los jugadores y gestiona el desafío
-          </p>
         </div>
 
         {/* Stats Grid */}

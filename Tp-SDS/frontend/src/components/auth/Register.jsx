@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext'; // ✅ CAMBIADO a AuthContext
+import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
 
 const Register = () => {
   const [formData, setFormData] = useState({
-    nickname: '',
+    username: '',      
     nombre: '',
     apellido: '',
     email: '',
-    password: '' // ✅ AGREGADO campo password
+    password: '' 
   });
   const [loading, setLoading] = useState(false);
 
-  const { register } = useAuth(); // ✅ CAMBIADO a useAuth()
+  const { register } = useAuth();
   const { showNotification } = useNotification();
   const navigate = useNavigate();
 
@@ -28,14 +28,24 @@ const Register = () => {
     e.preventDefault();
     setLoading(true);
 
+    // 👇 DEBUGGING TEMPORAL - Agrega esto
+    console.log('📤 Datos del formulario a enviar:', formData);
+    console.log('🔍 Campos específicos:', {
+      username: formData.username,
+      password: formData.password ? '***' : 'FALTANTE',
+      email: formData.email,
+      nombre: formData.nombre,
+      apellido: formData.apellido
+    });
+
     try {
-      const result = await register(formData); // ✅ CAMBIADO a register de Auth
+      const result = await register(formData);
 
       if (result.success) {
         showNotification('¡Registro exitoso! Ahora puedes participar en el desafío.', 'success');
         navigate('/dashboard');
       } else {
-        showNotification(result.error || 'Error en el registro', 'error');
+        showNotification(result.message || result.error || 'Error en el registro', 'error');
       }
     } catch (error) {
       console.error('Registration error:', error);
@@ -65,14 +75,14 @@ const Register = () => {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="nickname" className="block text-sm font-medium text-gray-700 mb-2">
-                🎮 Nickname
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+                🎮 Username
               </label>
               <input
                 type="text"
-                id="nickname"
-                name="nickname"
-                value={formData.nickname}
+                id="username"
+                name="username"  
+                value={formData.username}  
                 onChange={handleChange}
                 required
                 placeholder="Tu nombre de hacker"
@@ -129,7 +139,6 @@ const Register = () => {
               />
             </div>
 
-            {/* ✅ NUEVO CAMPO PASSWORD */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 🔑 Contraseña

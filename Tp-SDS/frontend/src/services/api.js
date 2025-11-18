@@ -71,7 +71,7 @@ class ApiService {
   }
 
   registerPlayer(playerData) {
-    return api.post('/auth/register/jugador', playerData);
+    return api.post('/auth/register', playerData);
   }
 
   checkSession() {
