@@ -133,24 +133,24 @@ class ApiService {
     return api.post('/game/weak-authentication', credentials);
   }
 
-  // --- VULNERABILITY ENDPOINTS ---
-  getProfile(userId = null) {
-    const params = userId ? { user_id: userId } : {};
-    return api.get('/perfil', { params });
+  // --- ✅ VULNERABILITY ENDPOINTS CORREGIDOS ---
+  getProfile() {
+    // ❌ REMOVED: userId parameter y params
+    return api.get('/perfil');
   }
 
-  editProfile(userId, profileData) {
+  editProfile(profileData) {
+    // ❌ REMOVED: userId parameter
     return api.post('/perfil/editar', {
-      user_id: userId,
       nombre: profileData.nombre,
       apellido: profileData.apellido,
       email: profileData.email
     });
   }
 
-  changePassword(userId, newPassword) {
+  changePassword(newPassword) {
+    // ❌ REMOVED: userId parameter
     return api.post('/perfil/cambiar-password', {
-      user_id: userId,
       nueva_password: newPassword
     });
   }

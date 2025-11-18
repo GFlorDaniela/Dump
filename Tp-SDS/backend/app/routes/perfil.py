@@ -15,9 +15,9 @@ def api_perfil():
         return jsonify({'success': False, 'message': 'No autenticado'}), 401
 
     # ------------------------------
-    #   2. Obtener user_id solicitado o default a sesión
+    #   2. Obtener user_id SOLO de sesión (nunca de parámetros)
     # ------------------------------
-    raw_user_id = request.args.get('user_id', session_user['numeric_id'])
+    raw_user_id = session_user['numeric_id']  
 
     # ------------------------------
     #   3. Detectar prefijo
@@ -31,16 +31,10 @@ def api_perfil():
         numeric_id = raw_user_id.replace("G-", "")
         db = "game"
     else:
-        # Caso legacy o IDOR sin prefijo
+        # Caso legacy
         prefix = "U"
         numeric_id = str(raw_user_id)
         db = "users"
-
-    # ------------------------------
-    #   4. Detectar IDOR
-    # ------------------------------
-    session_user_id = str(session_user['numeric_id'])
-    flag_provided = str(numeric_id) != session_user_id
 
     conn = None
     try:
@@ -70,7 +64,7 @@ def api_perfil():
             return jsonify({'success': False, 'message': 'Usuario no encontrado'}), 404
 
         # -------------------------------------
-        #  FORMATO DE RESPUESTA PARA USUARIOS U
+        #  FORMATO DE RESPUESTA
         # -------------------------------------
         if prefix == "U":
             user_id, nickname, nombre, apellido, email, role = row
@@ -85,9 +79,6 @@ def api_perfil():
                     "full_name": full_name
                 }
             }
-        # -------------------------------------
-        #  FORMATO DE RESPUESTA PARA USUARIOS G
-        # -------------------------------------
         else:
             user_id, username, full_name, email, role = row
             response_data = {
@@ -101,11 +92,6 @@ def api_perfil():
                 }
             }
 
-        # Flag IDOR
-        if flag_provided:
-            response_data['flag'] = 'IDOR1_FLAG_789'
-            response_data['message'] = '¡IDOR detectado! Flag: IDOR1_FLAG_789'
-
         return jsonify(response_data)
 
     except Exception as e:
@@ -115,7 +101,7 @@ def api_perfil():
         if conn:
             conn.close()
 
-# ✅ ENDPOINT: Editar perfil
+#  ENDPOINT: Editar perfil (SEGURO)
 @perfil_bp.route('/perfil/editar', methods=['POST'])
 @requires_auth
 def editar_perfil():
@@ -124,7 +110,9 @@ def editar_perfil():
         return jsonify({'success': False, 'message': 'No autenticado'}), 401
 
     data = request.get_json()
-    user_id = data.get('user_id', session_user['numeric_id'])
+    
+    user_id = session_user['numeric_id']
+    
     nombre = data.get('nombre')
     apellido = data.get('apellido')
     email = data.get('email')
@@ -132,11 +120,7 @@ def editar_perfil():
     if not all([nombre, apellido, email]):
         return jsonify({'success': False, 'message': 'Todos los campos son requeridos'}), 400
 
-    # Detectar IDOR
-    session_user_id = str(session_user['numeric_id'])
-    flag_provided = str(user_id) != session_user_id
-
-    # Determinar base de datos basado en el user_id
+    # Determinar base de datos basado en el user_id de sesión
     if isinstance(user_id, str) and user_id.startswith("U-"):
         numeric_id = user_id.replace("U-", "")
         db = "users"
@@ -153,7 +137,6 @@ def editar_perfil():
             conn = get_users_db_connection()
             c = conn.cursor()
             
-            # ✅ CORREGIDO: Actualizar en tabla jugadores
             c.execute("""
                 UPDATE jugadores 
                 SET nombre = ?, apellido = ?, email = ?
@@ -164,7 +147,6 @@ def editar_perfil():
             conn = get_game_db_connection()
             c = conn.cursor()
             
-            # ✅ CORREGIDO: Actualizar en tabla users
             full_name = f"{nombre} {apellido}".strip()
             c.execute("""
                 UPDATE users 
@@ -172,23 +154,15 @@ def editar_perfil():
                 WHERE id = ?
             """, (full_name, email, numeric_id))
         
-        # Verificar si se actualizó alguna fila
         if c.rowcount == 0:
             return jsonify({'success': False, 'message': 'Usuario no encontrado'}), 404
         
         conn.commit()
 
-        response_data = {
+        return jsonify({
             'success': True,
             'message': 'Perfil actualizado exitosamente'
-        }
-
-        # ✅ Flag por IDOR exitoso
-        if flag_provided:
-            response_data['flag'] = 'IDOR_EDIT_FLAG_890'
-            response_data['message_idor'] = '¡IDOR en edición detectado! Flag: IDOR_EDIT_FLAG_890'
-
-        return jsonify(response_data)
+        })
 
     except Exception as e:
         print(f"❌ Error al actualizar perfil: {str(e)}")
@@ -197,7 +171,7 @@ def editar_perfil():
         if conn:
             conn.close()
 
-# ✅ ENDPOINT: Cambiar contraseña
+#  ENDPOINT: Cambiar contraseña (SEGURO)
 @perfil_bp.route('/perfil/cambiar-password', methods=['POST'])
 @requires_auth
 def cambiar_password():
@@ -206,15 +180,17 @@ def cambiar_password():
         return jsonify({'success': False, 'message': 'No autenticado'}), 401
 
     data = request.get_json()
-    user_id = data.get('user_id', session_user['numeric_id'])
+    
+    user_id = session_user['numeric_id']
+    
     nueva_password = data.get('nueva_password')
 
     if not nueva_password:
         return jsonify({'success': False, 'message': 'La nueva contraseña es requerida'}), 400
 
-    # Detectar IDOR
-    session_user_id = str(session_user['numeric_id'])
-    flag_provided = str(user_id) != session_user_id
+    # Validar fortaleza de contraseña
+    if len(nueva_password) < 8:
+        return jsonify({'success': False, 'message': 'La contraseña debe tener al menos 8 caracteres'}), 400
 
     # Determinar base de datos
     if isinstance(user_id, str) and user_id.startswith("U-"):
@@ -233,33 +209,24 @@ def cambiar_password():
             conn = get_users_db_connection()
             c = conn.cursor()
             
-            # ✅ CORREGIDO: En tabla jugadores la columna es password_hash
+            # En producción, aquí deberías hashear la contraseña
             c.execute("UPDATE jugadores SET password_hash = ? WHERE id = ?", (nueva_password, numeric_id))
             
         else:
             conn = get_game_db_connection()
             c = conn.cursor()
             
-            # ✅ CORREGIDO: En tabla users la columna es password
             c.execute("UPDATE users SET password = ? WHERE id = ?", (nueva_password, numeric_id))
         
-        # Verificar si se actualizó alguna fila
         if c.rowcount == 0:
             return jsonify({'success': False, 'message': 'Usuario no encontrado'}), 404
         
         conn.commit()
 
-        response_data = {
+        return jsonify({
             'success': True,
             'message': 'Contraseña cambiada exitosamente'
-        }
-
-        # ✅ Flag por IDOR exitoso en cambio de contraseña
-        if flag_provided:
-            response_data['flag'] = 'IDOR_PASSWORD_FLAG_891'
-            response_data['message_idor'] = '¡IDOR en cambio de contraseña detectado! Flag: IDOR_PASSWORD_FLAG_891'
-
-        return jsonify(response_data)
+        })
 
     except Exception as e:
         print(f"❌ Error al cambiar contraseña: {str(e)}")
@@ -267,54 +234,3 @@ def cambiar_password():
     finally:
         if conn:
             conn.close()
-
-# ✅ ENDPOINT TEMPORAL: Debug de tablas (puedes eliminarlo después)
-@perfil_bp.route('/debug/tablas')
-@requires_auth
-def debug_tablas():
-    """Endpoint temporal para diagnosticar la estructura de la base de datos"""
-    try:
-        # Base de datos users
-        conn_users = get_users_db_connection()
-        c_users = conn_users.cursor()
-        
-        # Obtener todas las tablas en users
-        c_users.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        tablas_users = c_users.fetchall()
-        
-        # Obtener estructura de cada tabla en users
-        estructura_users = {}
-        for tabla in tablas_users:
-            tabla_nombre = tabla[0]
-            c_users.execute(f"PRAGMA table_info({tabla_nombre})")
-            columnas = c_users.fetchall()
-            estructura_users[tabla_nombre] = [dict(col) for col in columnas]
-        
-        conn_users.close()
-        
-        # Base de datos game
-        conn_game = get_game_db_connection()
-        c_game = conn_game.cursor()
-        
-        # Obtener todas las tablas en game
-        c_game.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        tablas_game = c_game.fetchall()
-        
-        # Obtener estructura de cada tabla en game
-        estructura_game = {}
-        for tabla in tablas_game:
-            tabla_nombre = tabla[0]
-            c_game.execute(f"PRAGMA table_info({tabla_nombre})")
-            columnas = c_game.fetchall()
-            estructura_game[tabla_nombre] = [dict(col) for col in columnas]
-        
-        conn_game.close()
-        
-        return jsonify({
-            'success': True,
-            'users_database': estructura_users,
-            'game_database': estructura_game
-        })
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500

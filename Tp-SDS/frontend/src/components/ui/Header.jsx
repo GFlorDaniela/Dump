@@ -25,13 +25,9 @@ const Header = () => {
     { name: 'Vulnerabilidades', href: '/vulnerabilities', icon: '🔓' },
     { name: 'Recetas', href: '/recipes', icon: '📖' },
 
-    // 🔥 FIX: PERFIL VULNERABLE
     { name: 'Perfil', href: `/profile?user_id=${user?.id}`, icon: '👤' },
   ];
 
-  if (user?.role === 'presentador') {
-    navigation.splice(1, 0, { name: 'Panel Presentador', href: '/presenter', icon: '🎤' });
-  }
 
   const handleLogout = async () => {
     await logout();
