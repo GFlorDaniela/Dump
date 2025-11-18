@@ -17,6 +17,8 @@ export const GameProvider = ({ children }) => {
   const [vulnerabilities, setVulnerabilities] = useState([]);
   const [flags, setFlags] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState(null);
+  const [globalStats, setGlobalStats] = useState({ top_score: 0, total_players: 0 }); // ✅ NUEVO
 
   useEffect(() => {
     const initializeGameData = async () => {
@@ -31,7 +33,6 @@ export const GameProvider = ({ children }) => {
         if (session && session.success && session.usuario) {
           console.log('👤 Usuario en sesión:', session.usuario);
           
-          // ✅ CORREGIDO: Usar session.usuario en lugar de session.user
           const user = session.usuario;
           
           // 2. Si el usuario tiene rol 'jugador', es jugador del juego
@@ -62,7 +63,6 @@ export const GameProvider = ({ children }) => {
                 setVulnerabilities(gameData.vulnerabilities);
                 setFlags(gameData.vulnerabilities);
                 
-                // Actualizar score si está disponible
                 if (gameData.total_score !== undefined) {
                   const updatedPlayer = {
                     ...playerData,
@@ -73,7 +73,6 @@ export const GameProvider = ({ children }) => {
               }
             } catch (gameError) {
               console.log('⚠️ No se pudieron cargar vulnerabilidades:', gameError);
-              // No es crítico, el usuario sigue siendo jugador
             }
           } else {
             console.log('❌ Usuario NO es jugador (role diferente):', user.role);
@@ -84,8 +83,8 @@ export const GameProvider = ({ children }) => {
           setGamePlayer(null);
         }
 
-        // 4. Cargar leaderboard
-        await loadLeaderboard();
+        // 4. Cargar leaderboard inicial (página 1) - SOLO UNA VEZ
+        await loadLeaderboard(1, 20);
 
       } catch (error) {
         console.error('💥 Error inicializando juego:', error);
@@ -114,7 +113,6 @@ export const GameProvider = ({ children }) => {
     try {
       const result = await ApiService.registerGamePlayer(playerData);
       if (result.success) {
-        // Recargar para sincronizar
         window.location.reload();
         return { success: true };
       }
@@ -133,14 +131,12 @@ export const GameProvider = ({ children }) => {
       const result = await ApiService.submitFlag(flagHash);
       
       if (result.success) {
-        // Actualizar estado local
         const updatedPlayer = {
           ...gamePlayer,
           total_score: (gamePlayer.total_score || 0) + result.points
         };
         setGamePlayer(updatedPlayer);
 
-        // Actualizar flags
         const newFlag = {
           flag_hash: flagHash,
           points: result.points,
@@ -150,9 +146,6 @@ export const GameProvider = ({ children }) => {
         
         setFlags(prev => [...prev, newFlag]);
         setVulnerabilities(prev => [...prev, newFlag]);
-
-        // Recargar leaderboard
-        await loadLeaderboard();
 
         return { 
           success: true, 
@@ -173,18 +166,34 @@ export const GameProvider = ({ children }) => {
     }
   };
 
-  const loadLeaderboard = async () => {
-    try {
-      const data = await ApiService.getLeaderboard();
-      if (data.success) {
-        setLeaderboard(data.leaderboard);
+  const loadLeaderboard = async (page = 1, perPage = 20) => {
+      try {
+          console.log(`🔄 [FRONTEND] Cargando leaderboard página ${page}...`);
+          const data = await ApiService.getLeaderboard(page, perPage);
+          console.log('📊 [FRONTEND] Respuesta del leaderboard:', data);
+          
+          if (data && data.success) {
+              console.log('✅ [FRONTEND] Leaderboard cargado exitosamente');
+              setLeaderboard(data.leaderboard || []);
+              setPagination(data.pagination || null);
+              setGlobalStats(data.global_stats || { top_score: 0, total_players: 0 }); // ✅ ACTUALIZAR
+              return data;
+          } else {
+              console.warn('⚠️ [FRONTEND] Leaderboard no tuvo éxito:', data);
+              setLeaderboard([]);
+              setPagination(null);
+              setGlobalStats({ top_score: 0, total_players: 0 });
+              return data;
+          }
+      } catch (error) {
+          console.error('❌ [FRONTEND] Error loading leaderboard:', error);
+          setLeaderboard([]);
+          setPagination(null);
+          setGlobalStats({ top_score: 0, total_players: 0 });
+          throw error;
       }
-    } catch (error) {
-      console.error('Error loading leaderboard:', error);
-    }
   };
 
-  // ✅ Función para forzar recarga
   const refreshGameState = async () => {
     setLoading(true);
     try {
@@ -203,13 +212,11 @@ export const GameProvider = ({ children }) => {
           is_registered: true
         };
         setGamePlayer(playerData);
-        
-        // Cargar datos de juego
         await loadVulnerabilities();
       } else {
         setGamePlayer(null);
       }
-      await loadLeaderboard();
+      await loadLeaderboard(1, 20);
     } catch (error) {
       console.error('Error refreshing game state:', error);
     } finally {
@@ -225,6 +232,8 @@ export const GameProvider = ({ children }) => {
         vulnerabilities,
         flags,
         loading,
+        pagination,
+        globalStats, // ✅ NUEVO
         registerPlayer,
         submitFlag,
         loadLeaderboard,

@@ -174,44 +174,94 @@ def api_game_submit_flag():
 def api_game_leaderboard():
     conn = None
     try:
+        # Obtener parámetros de paginación
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        
+        # Validar parámetros
+        page = max(1, page)
+        per_page = min(max(1, per_page), 100)
+        
         conn = get_users_db_connection()
         c = conn.cursor()
 
+        # ✅ OBTENER LA PUNTUACIÓN MÁS ALTA DE TODA LA BASE DE DATOS
         c.execute('''
-            SELECT 
-                j.id, j.nickname, j.total_score, j.nombre, j.apellido,
-                l.position, l.last_updated,
-                (SELECT COUNT(*) FROM game_flags WHERE player_id = j.id) as flags_completed
-            FROM jugadores j
-            LEFT JOIN leaderboard l ON j.id = l.player_id
-            WHERE j.role = 'jugador'
-            ORDER BY l.position ASC, j.total_score DESC
-            LIMIT 10
+            SELECT MAX(total_score) as max_score 
+            FROM jugadores 
+            WHERE role = 'jugador'
         ''')
+        max_score_result = c.fetchone()
+        top_score_global = max_score_result[0] if max_score_result and max_score_result[0] is not None else 0
+
+        # Contar total de jugadores con puntuación > 0
+        c.execute('''
+            SELECT COUNT(*) FROM jugadores 
+            WHERE role = 'jugador' AND total_score > 0
+        ''')
+        total_players = c.fetchone()[0]
+        
+        # Calcular paginación
+        total_pages = max(1, (total_players + per_page - 1) // per_page)
+        page = min(page, total_pages)
+        offset = (page - 1) * per_page
+
+        # Obtener jugadores paginados
+        c.execute('''
+            SELECT id, nickname, total_score, nombre, apellido, email, last_activity
+            FROM jugadores 
+            WHERE role = 'jugador' AND total_score > 0
+            ORDER BY total_score DESC
+            LIMIT ? OFFSET ?
+        ''', (per_page, offset))
 
         rows = c.fetchall()
         leaderboard_data = []
 
-        for p in rows:
+        for i, p in enumerate(rows):
+            global_position = offset + i + 1
+            
             leaderboard_data.append({
                 'id': f"U-{p[0]:04d}",
+                'user_id': p[0],
                 'nickname': p[1],
-                'total_score': p[2],
+                'total_score': p[2] or 0,
                 'nombre': p[3],
                 'apellido': p[4],
-                'position': p[5],
-                'last_updated': p[6],
-                'flags_completed': p[7] or 0
+                'email': p[5],
+                'last_activity': p[6],
+                'position': global_position,
+                'flags_captured': 0,
+                'flags_count': 0
             })
 
-        return jsonify({'success': True, 'leaderboard': leaderboard_data})
+        return jsonify({
+            'success': True, 
+            'leaderboard': leaderboard_data,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total_players': total_players,
+                'total_pages': total_pages,
+                'has_next': page < total_pages,
+                'has_prev': page > 1
+            },
+            'global_stats': {  # ✅ NUEVO: Estadísticas globales
+                'top_score': top_score_global,
+                'total_players_with_score': total_players
+            },
+            'total_players': total_players
+        })
 
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
+        print(f"❌ Error en leaderboard: {str(e)}")
+        return jsonify({
+            'success': False, 
+            'message': f'Error: {str(e)}'
+        })
     finally:
         if conn:
             conn.close()
-
 
 # ============================
 #   VULNERABILITIES LIST - MEJORADA

@@ -5,7 +5,7 @@ const API_BASE_URL = 'http://localhost:5000/api';
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
-  timeout: 5000,
+  timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -104,8 +104,9 @@ class ApiService {
     return api.post('/game/submit-flag', { flag_hash: flagHash });
   }
 
-  getLeaderboard() {
-    return api.get('/game/leaderboard');
+  getLeaderboard(page = 1, perPage = 20) {
+    console.log(`🌐 Haciendo request a /game/leaderboard?page=${page}&per_page=${perPage}`);
+    return api.get(`/game/leaderboard?page=${page}&per_page=${perPage}`);
   }
 
   getVulnerabilities() {
@@ -138,7 +139,6 @@ class ApiService {
     return api.get('/perfil', { params });
   }
 
-  // ✅ NUEVOS MÉTODOS PARA IDOR
   editProfile(userId, profileData) {
     return api.post('/perfil/editar', {
       user_id: userId,
@@ -154,7 +154,6 @@ class ApiService {
       nueva_password: newPassword
     });
   }
-
 
   getSystemLogs() {
     return api.get('/logs');

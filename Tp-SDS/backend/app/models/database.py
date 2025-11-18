@@ -10,6 +10,8 @@ from ..utils.security import hash_password
 # 🔌 Conexiones a Bases de Datos
 # --------------------------------------------------
 
+
+
 def get_users_db_connection():
     """Conexión SEGURA a la base de datos de usuarios"""
     if not os.path.exists('data'):
