@@ -408,27 +408,105 @@ def idor_vulnerability():
 @game_bp.route('/information-disclosure', methods=['GET'])
 @requires_auth
 def information_disclosure():
-    return {
-        'success': True,
-        'system_info': {
-            'debug': True,
-            'paths': {
-                'user_db': '../data/user.db',
-                'game_db': '../data/game.db'
-            },
-            'secrets': {
-                'admin_key': 'HARDCODED_ADMIN_KEY_12345'
-            }
-        }
-    }
+    """Endpoint para Information Disclosure Lab - Devuelve logs CTF específicos"""
+    conn = None
+    try:
+        conn = get_game_db_connection()
+        c = conn.cursor()
+        
+        # Obtener todos los logs de ctf_logs ordenados cronológicamente
+        c.execute("SELECT * FROM ctf_logs ORDER BY timestamp ASC")
+        logs = c.fetchall()
+        
+        logs_json = []
+        for log in logs:
+            logs_json.append({
+                'id': log[0],
+                'timestamp': log[1],
+                'event': log[2],
+                'details': log[3],
+                'user_id': log[4]
+            })
 
+        return jsonify({
+            'success': True,
+            'logs': logs_json,
+            'message': 'Logs del sistema cargados correctamente'
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
+    finally:
+        if conn:
+            conn.close()
+            
 
 @game_bp.route('/weak-authentication', methods=['POST'])
 @requires_auth
 def weak_authentication():
+    """Endpoint vulnerable para Weak Authentication Lab"""
     data = request.json
-    token = data.get('token')
+    username = data.get('username')
+    password = data.get('password')
 
-    if token == "letmein":
-        return {'success': True, 'message': 'Acceso débil concedido'}
-    return {'success': False, 'message': 'Token inválido'}
+    print(f"🔐 [BACKEND] Intento de login desde frontend: {username}/{password}")
+
+    # Credenciales débiles que deberían funcionar
+    weak_credentials = [
+        {'username': 'abuela', 'password': 'abuela123'},
+        {'username': 'admin', 'password': 'admin'},
+        {'username': 'admin', 'password': 'password'},
+        {'username': 'admin', 'password': '123456'},
+        {'username': 'test', 'password': 'test'},
+        {'username': 'user', 'password': 'password'},
+        {'username': 'root', 'password': '123456'},
+        {'username': 'guest', 'password': 'guest'},
+        {'username': 'administrator', 'password': 'administrator'},
+    ]
+
+    # Verificar contra credenciales débiles primero
+    for cred in weak_credentials:
+        if username == cred['username'] and password == cred['password']:
+            print(f"✅ [BACKEND] Autenticación débil exitosa con: {username}/{password}")
+            return jsonify({
+                'success': True,
+                'message': f'¡Autenticación débil exitosa! Usuario: {username}',
+                'flag': 'WEAK_AUTH_FLAG_1k7jR3sV',
+                'user': username
+            })
+
+    print(f"🔍 [BACKEND] Probando en base de datos: {username}")
+    
+    # Si no coincide con credenciales débiles, verificar en la base de datos
+    conn = get_game_db_connection()
+    c = conn.cursor()
+    
+    try:
+        # Consulta vulnerable - sin hash de contraseñas
+        c.execute("SELECT id, username, password FROM users WHERE username = ? AND password = ?", 
+                 (username, password))
+        user = c.fetchone()
+        
+        if user:
+            print(f"✅ [BACKEND] Autenticación por BD exitosa: {username}")
+            return jsonify({
+                'success': True,
+                'message': f'¡Autenticación exitosa! Usuario: {username}',
+                'flag': 'WEAK_AUTH_FLAG_1k7jR3sV',
+                'user': username
+            })
+        else:
+            print(f"❌ [BACKEND] Credenciales incorrectas: {username}/{password}")
+            return jsonify({
+                'success': False,
+                'message': 'Credenciales incorrectas'
+            })
+            
+    except Exception as e:
+        print(f"❌ [BACKEND] Error en weak-authentication: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Error en el servidor'
+        })
+    finally:
+        conn.close()
