@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 from ..config import Config
 from ..utils.security import hash_password
+from ..utils.Vulnerabilities import VULNERABILITIES
 
 
 # --------------------------------------------------
@@ -149,6 +150,21 @@ def init_users_db():
     conn.commit()
     conn.close()
 
+def seed_vulnerabilities_db(c):
+        for v in VULNERABILITIES:
+            c.execute("""
+                INSERT OR REPLACE INTO vulnerabilities
+                (id, name, description, difficulty, points, flag_hash, solution_hint)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                v['id'],
+                v['name'],
+                v['description'],
+                v['difficulty'],
+                v['points'],
+                v['flag_hash'],
+                v['solution_hint']
+            ))
 
 # --------------------------------------------------
 # 🟥 Base de Datos Vulnerable del Juego (CTF)
@@ -220,7 +236,10 @@ def init_game_db():
             solution_hint TEXT
         )
     ''')
-
+    c.execute("DELETE FROM vulnerabilities")
+    conn.commit() 
+    seed_vulnerabilities_db(c)
+    conn.commit() 
     # --------------------------------------------------
     # 🔥 Reinserción de logs iniciales (IDs fijos 1–5)
     # --------------------------------------------------
@@ -275,29 +294,3 @@ def init_game_db():
             c.execute("INSERT OR IGNORE INTO recetas VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", receta)
         except sqlite3.IntegrityError:
             pass
-
-    # --------------------------------------------------
-    # 🛡 Vulnerabilidades
-    # --------------------------------------------------
-
-    vulnerabilities_data = [
-        (1, 'SQL Injection - Login', 'Inyecta SQL en el formulario de login', 'Fácil', 100, 
-         'SQL1_FLAG_7x9aB2cD', 'Usa comillas simples para romper la consulta'),
-        (2, 'SQL Injection - Búsqueda', 'Inyecta SQL en la búsqueda de recetas', 'Fácil', 100, 
-         'SQL2_FLAG_3y8fE1gH', 'Prueba con UNION SELECT'),
-        (3, 'IDOR - Perfiles', 'Accede a perfiles de otros usuarios', 'Medio', 150, 
-         'IDOR_FLAG_5z2qW8rT', 'Cambia el parámetro user_id'),
-        (4, 'Information Disclosure', 'Encuentra información sensible en logs', 'Fácil', 80,
-         'INFO_FLAG_9m4nX6pL', 'Revisa todos los logs visibles'),
-        (5, 'Weak Authentication', 'Adivina contraseñas débiles', 'Medio', 120, 
-         'WEAK_AUTH_FLAG_1k7jR3sV', 'Prueba contraseñas comunes')
-    ]
-
-    for vuln in vulnerabilities_data:
-        try:
-            c.execute("INSERT OR IGNORE INTO vulnerabilities VALUES (?, ?, ?, ?, ?, ?, ?)", vuln)
-        except sqlite3.IntegrityError:
-            pass
-
-    conn.commit()
-    conn.close()

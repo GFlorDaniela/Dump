@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
 from .config import Config
-from .models.database import init_databases
+from .models.database import init_databases, seed_vulnerabilities_db
 
 # Importar Blueprints
 from .routes.auth import auth_bp

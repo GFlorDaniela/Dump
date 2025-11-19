@@ -133,6 +133,11 @@ class ApiService {
     return api.post('/game/weak-authentication', credentials);
   }
 
+  // En ApiService.js - agregar este método
+  getMyFlags() {
+    return api.get('/game/my-flags');
+  }
+
   // --- VULNERABILITY ENDPOINTS ---
   getProfile(userId = null) {
     const params = userId ? { user_id: userId } : {};

@@ -3,6 +3,7 @@ from app.models.database import get_users_db_connection, get_game_db_connection
 from ..utils.helpers import requires_auth, update_leaderboard
 from datetime import datetime
 import uuid
+from app.utils.Vulnerabilities import VULNERABILITIES as Vulnerabilities
 
 game_bp = Blueprint('game', __name__)
 
@@ -102,7 +103,13 @@ def api_game_register():
 @requires_auth
 def api_game_submit_flag():
     data = request.get_json()
-    raw_player_id = session.get('user_id')   # ID REAL sin prefijo
+    
+    # ✅ CORREGIDO: Obtener user_id del objeto user
+    user_data = session.get('user')
+    if not user_data:
+        return jsonify({'success': False, 'message': 'No autenticado'})
+    
+    raw_player_id = user_data.get('numeric_id')  # ← ID numérico del user
     flag_hash = data.get('flag_hash')
 
     if not raw_player_id or not flag_hash:
@@ -137,14 +144,24 @@ def api_game_submit_flag():
             VALUES (?, ?, ?, ?, ?)
         """, (raw_player_id, vulnerability['name'], flag_hash, vulnerability['points'], completed_at))
 
-        # Actualizar score
+        # Actualizar score usando el ID numérico
         users_conn = get_users_db_connection()
         users_c = users_conn.cursor()
+        
+        # Verificar que el jugador existe
+        users_c.execute("SELECT id FROM jugadores WHERE id = ?", (raw_player_id,))
+        player_exists = users_c.fetchone()
+        
+        if not player_exists:
+            return jsonify({'success': False, 'message': 'Jugador no encontrado'})
+
+        # Actualizar score usando el ID numérico
         users_c.execute("""
             UPDATE jugadores 
             SET total_score = total_score + ?, last_activity = ?
             WHERE id = ?
         """, (vulnerability['points'], completed_at, raw_player_id))
+        
         users_conn.commit()
         users_conn.close()
 
@@ -156,7 +173,7 @@ def api_game_submit_flag():
             'message': f'¡Vulnerabilidad {vulnerability["name"]} completada! +{vulnerability["points"]} puntos',
             'points': vulnerability['points'],
             'vulnerability': vulnerability['name'],
-            'player_id': f"U-{raw_player_id:04d}"
+            'player_id': raw_player_id
         })
 
     except Exception as e:
@@ -272,70 +289,71 @@ def api_game_vulnerabilities():
     """Información completa sobre vulnerabilidades"""
     return jsonify({
         'success': True,
-        'vulnerabilities': [
-            {
-                'id': 1,
-                'name': 'SQL Injection - Login',
-                'description': 'Inyecta SQL en el formulario de login para bypassear autenticación',
-                'locations': ['Login'],
-                'difficulty': 'Fácil',
-                'points': 100,
-                'flag_hash': 'SQL1_FLAG_7x9aB2cD',
-                'solution_hint': 'Usa comillas simples para romper la consulta SQL',
-                'endpoint': '/game/sql-injection-login',
-                'method': 'POST'
-            },
-            {
-                'id': 2,
-                'name': 'SQL Injection - Búsqueda',
-                'description': 'Inyecta SQL en la búsqueda de recetas para extraer información',
-                'locations': ['Búsqueda de recetas'],
-                'difficulty': 'Fácil',
-                'points': 100,
-                'flag_hash': 'SQL2_FLAG_3y8fE1gH',
-                'solution_hint': 'Prueba con UNION SELECT para extraer datos',
-                'endpoint': '/buscar',
-                'method': 'POST'
-            },
-            {
-                'id': 3,
-                'name': 'IDOR - Perfiles',
-                'description': 'Accede a perfiles de otros usuarios modificando el user_id',
-                'locations': ['Perfiles de usuario'],
-                'difficulty': 'Medio',
-                'points': 150,
-                'flag_hash': 'IDOR_FLAG_5z2qW8rT',
-                'solution_hint': 'Modifica el parámetro user_id en la URL del perfil',
-                'endpoint': '/perfil',
-                'method': 'GET'
-            },
-            {
-                'id': 4,
-                'name': 'Information Disclosure',
-                'description': 'Encuentra información sensible expuesta en los logs del sistema',
-                'locations': ['Logs del sistema'],
-                'difficulty': 'Fácil',
-                'points': 80,
-                'flag_hash': 'INFO_FLAG_9m4nX6pL',
-                'solution_hint': 'Revisa todos los logs visibles en el dashboard',
-                'endpoint': '/logs',
-                'method': 'GET'
-            },
-            {
-                'id': 5,
-                'name': 'Weak Authentication',
-                'description': 'Adivina contraseñas débiles o usa credenciales por defecto',
-                'locations': ['Desbloqueo de recetas', 'Login'],
-                'difficulty': 'Medio',
-                'points': 120,
-                'flag_hash': 'WEAK_AUTH_FLAG_1k7jR3sV',
-                'solution_hint': 'Prueba contraseñas comunes o credenciales por defecto',
-                'endpoint': '/game/weak-authentication',
-                'method': 'POST'
-            }
-        ]
+        'vulnerabilities': Vulnerabilities
     })
 
+# ============================
+#   MY FLAGS - OBTENER FLAGS CAPTURADAS (CORREGIDO)
+# ============================
+@game_bp.route('/my-flags', methods=['GET'])
+@requires_auth
+def api_game_my_flags():
+    """Obtener las flags capturadas por el jugador actual"""
+    
+    # ✅ CORREGIDO: Obtener user_id del objeto user en session
+    user_data = session.get('user')
+    if not user_data:
+        return jsonify({'success': False, 'message': 'No autenticado'})
+    
+    # Usar numeric_id del user object
+    user_id = user_data.get('numeric_id')
+    if not user_id:
+        return jsonify({'success': False, 'message': 'No autenticado'})
+
+    print(f"✅ MY-FLAGS: user_id encontrado = {user_id}")
+
+    conn = None
+    try:
+        conn = get_game_db_connection()
+        c = conn.cursor()
+        
+        # Obtener flags capturadas por el jugador
+        c.execute("""
+            SELECT 
+                gf.flag_hash, 
+                gf.vulnerability_type, 
+                gf.points, 
+                gf.completed_at,
+                v.name as vulnerability_name,
+                v.description
+            FROM game_flags gf
+            LEFT JOIN vulnerabilities v ON gf.flag_hash = v.flag_hash
+            WHERE gf.player_id = ?
+            ORDER BY gf.completed_at DESC
+        """, (user_id,))
+        
+        flags = c.fetchall()
+        flags_list = [dict(flag) for flag in flags]
+        
+        # Calcular puntos totales
+        total_points = sum(flag['points'] for flag in flags_list) if flags_list else 0
+        
+        print(f"✅ DEBUG my-flags: {len(flags_list)} flags encontradas, {total_points} puntos totales")
+        
+        return jsonify({
+            'success': True,
+            'flags': flags_list,
+            'total_flags': len(flags_list),
+            'total_points': total_points
+        })
+        
+    except Exception as e:
+        print(f"❌ ERROR en my-flags: {str(e)}")
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
+    finally:
+        if conn:
+            conn.close()
+            
 # ================================
 #     VULNERABILIDADES COMPLETAS
 # ================================
