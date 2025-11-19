@@ -47,18 +47,19 @@ const Header = () => {
   }, [gamePlayer, user?.id, user?.email, user?.username]);
 
   const navigation = user?.role === 'presentador' ? [
-    { name: 'Dashboard', href: '/dashboard', icon: '📊' },
-    { name: 'Vulnerabilidades', href: '/vulnerabilities', icon: '🔓' },
-    { name: 'Recetas', href: '/recipes', icon: '📖' },
-    { name: 'Perfil', href: '/profile', icon: '👤' }, 
-    { name: 'Leaderboard', href: '/leaderboard', icon: '🏆' },
-    { name: 'Panel Presentador', href: '/presenter', icon: '🎤' },
-  ] : [
-    { name: 'Dashboard', href: '/dashboard', icon: '📊' },
-    { name: 'Vulnerabilidades', href: '/vulnerabilities', icon: '🔓' },
-    { name: 'Recetas', href: '/recipes', icon: '📖' },
-    { name: 'Perfil', href: '/profile', icon: '👤' }, 
-  ];
+  { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+  { name: 'Vulnerabilidades', href: '/vulnerabilities', icon: '🔓' },
+  { name: 'Recetas', href: '/recipes', icon: '📖' },
+  { name: 'Perfil', href: `/profile?user_id=${user?.id}`, icon: '👤' }, 
+  { name: 'Leaderboard', href: '/leaderboard', icon: '🏆' },
+  { name: 'Panel Presentador', href: '/presenter', icon: '🎤' },
+] : [
+  { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+  { name: 'Vulnerabilidades', href: '/vulnerabilities', icon: '🔓' },
+  { name: 'Recetas', href: '/recipes', icon: '📖' },
+  { name: 'Perfil', href: `/profile?user_id=${user?.id}`, icon: '👤' }, 
+];
+
 
   const handleLogout = async () => {
     await logout();

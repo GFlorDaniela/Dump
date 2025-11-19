@@ -144,21 +144,19 @@ class ApiService {
   return api.get('/perfil', { params });
 }
 
-editProfile(userId, profileData) {
-  return api.post('/perfil/editar', {
-    user_id: userId,
-    nombre: profileData.nombre,
-    apellido: profileData.apellido,
-    email: profileData.email
-  });
+async editProfile(targetId, data, externalId = null) {
+    const query = externalId ? `?user_id=${externalId}` : "";
+    return await api.post(`/perfil/editar${query}`, data);
 }
 
-changePassword(userId, newPassword) {
-  return api.post('/perfil/cambiar-password', {
-    user_id: userId,
-    nueva_password: newPassword
-  });
+
+async changePassword(targetId, newPassword, externalId = null) {
+    const query = externalId ? `?user_id=${externalId}` : "";
+    return await api.post(`/perfil/cambiar-password${query}`, {
+        nueva_password: newPassword,
+    });
 }
+
 
 getSystemLogs() {
   return api.get('/logs');

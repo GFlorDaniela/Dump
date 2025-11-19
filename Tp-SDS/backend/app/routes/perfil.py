@@ -1,59 +1,50 @@
 from flask import Blueprint, request, session, jsonify
 from app.models.database import get_users_db_connection, get_game_db_connection
 from ..utils.helpers import requires_auth
+from ..utils.security import hash_password
 
 perfil_bp = Blueprint('perfil', __name__)
 
+# ==========================================================
+#                  OBTENER PERFIL
+# ==========================================================
 @perfil_bp.route('/perfil')
 @requires_auth
 def api_perfil():
-    # ------------------------------
-    #   1. Obtener usuario de sesión
-    # ------------------------------
-    session_user = session.get('user')
-    if not session_user:
-        return jsonify({'success': False, 'message': 'No autenticado'}), 401
 
-    # ------------------------------
-    #   2. Obtener user_id SOLO de sesión (nunca de parámetros)
-    # ------------------------------
-    raw_user_id = session_user['numeric_id']  
+    # 1) Si viene por URL, lo usamos
+    user_id = request.args.get("user_id")
 
-    # ------------------------------
-    #   3. Detectar prefijo
-    # ------------------------------
-    if isinstance(raw_user_id, str) and raw_user_id.startswith("U-"):
-        prefix = "U"
-        numeric_id = raw_user_id.replace("U-", "")
-        db = "users"
-    elif isinstance(raw_user_id, str) and raw_user_id.startswith("G-"):
-        prefix = "G"
-        numeric_id = raw_user_id.replace("G-", "")
-        db = "game"
+    # 2) Si no viene nada, usamos la sesión
+    if not user_id:
+        session_user = session.get("user")
+        if not session_user:
+            return jsonify({"success": False, "message": "No autenticado"}), 401
+        user_id = session_user.get("id")  # Ej: U-3 o G-1
+
+    # Detectar si es U- o G-
+    if str(user_id).startswith("U-"):
+        numeric_id = user_id.replace("U-", "")
+        db_type = "users"
+    elif str(user_id).startswith("G-"):
+        numeric_id = user_id.replace("G-", "")
+        db_type = "game"
     else:
-        # Caso legacy
-        prefix = "U"
-        numeric_id = str(raw_user_id)
-        db = "users"
+        numeric_id = user_id
+        db_type = "users"
 
-    conn = None
     try:
-        # ------------------------------
-        #   5. Elegir DB correcta
-        # ------------------------------
-        if db == "users":
+        if db_type == "users":
             conn = get_users_db_connection()
             query = """
-            SELECT id, nickname, nombre, apellido, email, role
-            FROM jugadores
-            WHERE id = ?
+            SELECT id, nickname, nombre, apellido, email, role 
+            FROM jugadores WHERE id = ?
             """
         else:
             conn = get_game_db_connection()
             query = """
-            SELECT id, username, full_name, email, role
-            FROM users
-            WHERE id = ?
+            SELECT id, username, full_name, email, role 
+            FROM users WHERE id = ?
             """
 
         c = conn.cursor()
@@ -61,176 +52,197 @@ def api_perfil():
         row = c.fetchone()
 
         if not row:
-            return jsonify({'success': False, 'message': 'Usuario no encontrado'}), 404
+            return jsonify({"success": False, "message": "Usuario no encontrado"}), 404
 
-        # -------------------------------------
-        #  FORMATO DE RESPUESTA
-        # -------------------------------------
-        if prefix == "U":
-            user_id, nickname, nombre, apellido, email, role = row
-            full_name = f"{nombre} {apellido}".strip()
-            response_data = {
+        # Respuesta para DB "users"
+        if db_type == "users":
+            uid, nickname, nombre, apellido, email, role = row
+            full_name = f"{nombre} {apellido}"
+            return jsonify({
                 "success": True,
                 "usuario": {
-                    "id": f"U-{user_id}",
+                    "id": f"U-{uid}",
                     "username": nickname,
+                    "full_name": full_name,
                     "email": email,
-                    "role": role,
-                    "full_name": full_name
+                    "role": role
                 }
-            }
-        else:
-            user_id, username, full_name, email, role = row
-            response_data = {
-                "success": True,
-                "usuario": {
-                    "id": f"G-{user_id}",
-                    "username": username,
-                    "email": email,
-                    "role": role,
-                    "full_name": full_name
-                }
-            }
+            })
 
-        return jsonify(response_data)
+        # Respuesta para DB "game"
+        uid, username, full_name, email, role = row
+        return jsonify({
+            "success": True,
+            "usuario": {
+                "id": f"G-{uid}",
+                "username": username,
+                "full_name": full_name,
+                "email": email,
+                "role": role
+            }
+        })
 
     except Exception as e:
-        print(f"❌ Error en perfil: {str(e)}")
-        return jsonify({'success': False, 'message': f'Error interno: {str(e)}'}), 500
-    finally:
-        if conn:
-            conn.close()
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
-#  ENDPOINT: Editar perfil (SEGURO)
+
+# ==========================================================
+#                  EDITAR PERFIL
+# ==========================================================
 @perfil_bp.route('/perfil/editar', methods=['POST'])
 @requires_auth
 def editar_perfil():
-    session_user = session.get('user')
+
+    session_user = session.get("user")
     if not session_user:
-        return jsonify({'success': False, 'message': 'No autenticado'}), 401
+        return jsonify({"success": False, "message": "No autenticado"}), 401
 
     data = request.get_json()
-    
-    user_id = session_user['numeric_id']
-    
-    nombre = data.get('nombre')
-    apellido = data.get('apellido')
-    email = data.get('email')
+
+    # 1) TOMAR USER_ID DESDE QUERY (IDOR TOTAL)
+    target_id = request.args.get("user_id")
+
+    # 2) Si NO viene en query → editar el perfil del que está logueado
+    if not target_id:
+        target_id = session_user.get("id")
+
+    # 3) Determinar DB según prefijo
+    if isinstance(target_id, str) and target_id.startswith("U-"):
+        numeric_id = target_id.replace("U-", "")
+        db_type = "users"
+
+    elif isinstance(target_id, str) and target_id.startswith("G-"):
+        numeric_id = target_id.replace("G-", "")
+        db_type = "game"
+
+    else:
+        numeric_id = target_id
+        db_type = "users"
+
+    # 4) Datos del body
+    nombre = data.get("nombre")
+    apellido = data.get("apellido")
+    email = data.get("email")
 
     if not all([nombre, apellido, email]):
         return jsonify({'success': False, 'message': 'Todos los campos son requeridos'}), 400
 
-    # Determinar base de datos basado en el user_id de sesión
-    if isinstance(user_id, str) and user_id.startswith("U-"):
-        numeric_id = user_id.replace("U-", "")
-        db = "users"
-    elif isinstance(user_id, str) and user_id.startswith("G-"):
-        numeric_id = user_id.replace("G-", "")
-        db = "game"
-    else:
-        numeric_id = str(user_id)
-        db = "users"
-
     conn = None
     try:
-        if db == "users":
+        if db_type == "users":
             conn = get_users_db_connection()
             c = conn.cursor()
-            
+
             c.execute("""
-                UPDATE jugadores 
+                UPDATE jugadores
                 SET nombre = ?, apellido = ?, email = ?
                 WHERE id = ?
             """, (nombre, apellido, email, numeric_id))
-            
+
         else:
             conn = get_game_db_connection()
             c = conn.cursor()
-            
+
             full_name = f"{nombre} {apellido}".strip()
             c.execute("""
                 UPDATE users 
                 SET full_name = ?, email = ?
                 WHERE id = ?
             """, (full_name, email, numeric_id))
-        
+
         if c.rowcount == 0:
             return jsonify({'success': False, 'message': 'Usuario no encontrado'}), 404
-        
+
         conn.commit()
 
         return jsonify({
             'success': True,
-            'message': 'Perfil actualizado exitosamente'
+            'message': 'Perfil actualizado correctamente',
+            'edited_user': target_id
         })
 
     except Exception as e:
-        print(f"❌ Error al actualizar perfil: {str(e)}")
-        return jsonify({'success': False, 'message': f'Error al actualizar perfil: {str(e)}'}), 500
+        print("❌ Error al editar perfil:", e)
+        return jsonify({'success': False, 'message': f'Error al editar perfil: {str(e)}'}), 500
+
     finally:
         if conn:
             conn.close()
 
-#  ENDPOINT: Cambiar contraseña (SEGURO)
+
+
+# ==========================================================
+#                  CAMBIAR PASSWORD
+# ==========================================================
 @perfil_bp.route('/perfil/cambiar-password', methods=['POST'])
 @requires_auth
 def cambiar_password():
-    session_user = session.get('user')
+
+    session_user = session.get("user")
     if not session_user:
-        return jsonify({'success': False, 'message': 'No autenticado'}), 401
+        return jsonify({"success": False, "message": "No autenticado"}), 401
 
     data = request.get_json()
-    
-    user_id = session_user['numeric_id']
-    
-    nueva_password = data.get('nueva_password')
 
-    if not nueva_password:
-        return jsonify({'success': False, 'message': 'La nueva contraseña es requerida'}), 400
+    # 1) Tomar el ID desde la QUERY (IDOR total)
+    target_id = request.args.get("user_id")
 
-    # Validar fortaleza de contraseña
-    if len(nueva_password) < 8:
-        return jsonify({'success': False, 'message': 'La contraseña debe tener al menos 8 caracteres'}), 400
+    # 2) Si NO viene, usamos el usuario logueado
+    if not target_id:
+        target_id = session_user.get("id")
 
-    # Determinar base de datos
-    if isinstance(user_id, str) and user_id.startswith("U-"):
-        numeric_id = user_id.replace("U-", "")
-        db = "users"
-    elif isinstance(user_id, str) and user_id.startswith("G-"):
-        numeric_id = user_id.replace("G-", "")
-        db = "game"
+    # 3) Detectar DB por prefijo
+    if target_id.startswith("U-"):
+        numeric_id = target_id.replace("U-", "")
+        db_type = "users"
+
+    elif target_id.startswith("G-"):
+        numeric_id = target_id.replace("G-", "")
+        db_type = "game"
+
     else:
-        numeric_id = str(user_id)
-        db = "users"
+        numeric_id = target_id
+        db_type = "users"
 
-    conn = None
+    nueva_password = data.get("nueva_password")
+    if not nueva_password:
+        return jsonify({"success": False, "message": "La nueva contraseña es requerida"}), 400
+
     try:
-        if db == "users":
+        if db_type == "users":
             conn = get_users_db_connection()
             c = conn.cursor()
-            
-            # En producción, aquí deberías hashear la contraseña
-            c.execute("UPDATE jugadores SET password_hash = ? WHERE id = ?", (nueva_password, numeric_id))
-            
+
+            c.execute("""
+                UPDATE jugadores 
+                SET password_hash = ?
+                WHERE id = ?
+            """, (hash_password(nueva_password), numeric_id))
+
         else:
             conn = get_game_db_connection()
             c = conn.cursor()
-            
-            c.execute("UPDATE users SET password = ? WHERE id = ?", (nueva_password, numeric_id))
-        
+
+            c.execute("""
+                UPDATE users 
+                SET password = ?
+                WHERE id = ?
+            """, (hash_password(nueva_password), numeric_id))
+
         if c.rowcount == 0:
-            return jsonify({'success': False, 'message': 'Usuario no encontrado'}), 404
-        
+            return jsonify({"success": False, "message": "Usuario no encontrado"}), 404
+
         conn.commit()
 
         return jsonify({
-            'success': True,
-            'message': 'Contraseña cambiada exitosamente'
+            "success": True,
+            "message": "Contraseña cambiada",
+            "edited_user": target_id
         })
 
     except Exception as e:
-        print(f"❌ Error al cambiar contraseña: {str(e)}")
-        return jsonify({'success': False, 'message': f'Error al cambiar contraseña: {str(e)}'}), 500
+        print("❌ Error cambiando contraseña:", e)
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
     finally:
-        if conn:
-            conn.close()
+        conn.close()
