@@ -140,38 +140,29 @@ class ApiService {
 
   // --- VULNERABILITY ENDPOINTS ---
   getProfile(userId = null) {
-    const params = userId ? { user_id: userId } : {};
-    return api.get('/perfil', { params });
-  }
+  const params = userId ? { user_id: userId } : {};
+  return api.get('/perfil', { params });
+}
 
-  editProfile(userId, profileData) {
-    return api.post('/perfil/editar', {
-      user_id: userId,
-      nombre: profileData.nombre,
-      apellido: profileData.apellido,
-      email: profileData.email
-    });
-  }
+editProfile(userId, profileData) {
+  return api.post('/perfil/editar', {
+    user_id: userId,
+    nombre: profileData.nombre,
+    apellido: profileData.apellido,
+    email: profileData.email
+  });
+}
 
-  changePassword(userId, newPassword) {
-    return api.post('/perfil/cambiar-password', {
-      user_id: userId,
-      nueva_password: newPassword
-    });
-  }
+changePassword(userId, newPassword) {
+  return api.post('/perfil/cambiar-password', {
+    user_id: userId,
+    nueva_password: newPassword
+  });
+}
 
-  getSystemLogs() {
-    return api.get('/logs');
-  }
-
-  // --- PRESENTADOR ENDPOINTS ---
-  getPresenterDashboard() {
-    return api.get('/presentador/dashboard');
-  }
-
-  createPresenter(presenterData) {
-    return api.post('/presentador/crear-presentador', presenterData);
-  }
+getSystemLogs() {
+  return api.get('/logs');
+}
 }
 
 export default new ApiService();

@@ -1,37 +1,64 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../contexts/GameContext';
+import ApiService from '../../services/api';
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentScore, setCurrentScore] = useState(0); 
   const { user, logout } = useAuth();
-  const { gamePlayer } = useGame();
+  const { gamePlayer, refreshGameState } = useGame();
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const loadCurrentScore = async () => {
+      if (gamePlayer) {
+        try {
+          console.log('🏆 Header: Cargando score actualizado...');
+          const leaderboardData = await ApiService.getLeaderboard(1, 100);
+          
+          if (leaderboardData?.leaderboard && Array.isArray(leaderboardData.leaderboard)) {
+            const currentUserInLeaderboard = leaderboardData.leaderboard.find(player => 
+              player.id === user?.id || 
+              player.email === user?.email || 
+              player.username === user?.username
+            );
+            
+            if (currentUserInLeaderboard) {
+              setCurrentScore(currentUserInLeaderboard.total_score || 0);
+              console.log('🎯 Header: Score actualizado:', currentUserInLeaderboard.total_score);
+            } else {
+              setCurrentScore(gamePlayer.total_score || 0);
+              console.log('⚠️ Header: Usuario no encontrado en leaderboard');
+            }
+          } else {
+            setCurrentScore(gamePlayer.total_score || 0);
+          }
+        } catch (error) {
+          console.log('❌ Header: Error cargando score, usando valor por defecto');
+          setCurrentScore(gamePlayer.total_score || 0);
+        }
+      }
+    };
+
+    loadCurrentScore();
+  }, [gamePlayer, user?.id, user?.email, user?.username]);
 
   const navigation = user?.role === 'presentador' ? [
     { name: 'Dashboard', href: '/dashboard', icon: '📊' },
     { name: 'Vulnerabilidades', href: '/vulnerabilities', icon: '🔓' },
     { name: 'Recetas', href: '/recipes', icon: '📖' },
-
-    // 🔥 FIX: PERFIL VULNERABLE CON ?user_id=
-    { name: 'Perfil', href: `/profile?user_id=${user?.id}`, icon: '👤' },
-
+    { name: 'Perfil', href: '/profile', icon: '👤' }, 
     { name: 'Leaderboard', href: '/leaderboard', icon: '🏆' },
     { name: 'Panel Presentador', href: '/presenter', icon: '🎤' },
   ] : [
     { name: 'Dashboard', href: '/dashboard', icon: '📊' },
     { name: 'Vulnerabilidades', href: '/vulnerabilities', icon: '🔓' },
     { name: 'Recetas', href: '/recipes', icon: '📖' },
-
-    // 🔥 FIX: PERFIL VULNERABLE
-    { name: 'Perfil', href: `/profile?user_id=${user?.id}`, icon: '👤' },
+    { name: 'Perfil', href: '/profile', icon: '👤' }, 
   ];
-
-  if (user?.role === 'presentador') {
-    navigation.splice(1, 0, { name: 'Panel Presentador', href: '/presenter', icon: '🎤' });
-  }
 
   const handleLogout = async () => {
     await logout();
@@ -79,7 +106,7 @@ const Header = () => {
                   🎮 {gamePlayer.nickname}
                 </span>
                 <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded-full">
-                  {gamePlayer.total_score} pts
+                  {currentScore} pts 
                 </span>
               </div>
             )}
@@ -139,7 +166,7 @@ const Header = () => {
                       🎮 {gamePlayer.nickname}
                     </span>
                     <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded-full">
-                      {gamePlayer.total_score} pts
+                      {currentScore} pts 
                     </span>
                   </div>
                 </div>
