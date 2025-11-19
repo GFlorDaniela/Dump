@@ -1,12 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from "react-router-dom"; // <--- NUEVO
 import { useAuth } from '../../contexts/AuthContext';
 import { useGame } from '../../contexts/GameContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import ApiService from '../../services/api';
 
+
+
 const Profile = () => {
+
+  // Extraemos ?user_id desde la URL (permite ver perfiles externos)
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const externalUserId = queryParams.get("user_id"); // <--- NUEVO
+
   const { user, logout } = useAuth();
-  const { gamePlayer, flags, refreshGameState } = useGame(); 
+  const { gamePlayer, flags } = useGame(); 
   const { showNotification } = useNotification();
 
   const [profile, setProfile] = useState(null);
@@ -18,81 +27,64 @@ const Profile = () => {
   const [updatingProfile, setUpdatingProfile] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
+  console.log("Hola ➡️ getProfile con userId:", externalUserId);
+
+
   useEffect(() => {
     loadProfile();
-  }, []);
+  }, [externalUserId]); // <--- NUEVO, recarga si cambia user_id
+
+  // ⛔ Previene bucle infinito con GameContext
+  useEffect(() => {
+    if (!profile?.id || !gamePlayer?.numeric_id) return;
+
+    console.log("🏆 Buscando score en leaderboard solo UNA VEZ...");
+
+    ApiService.getLeaderboard(1, 100)
+      .then((data) => {
+        const found = data.leaderboard.find(
+          (p) => p.id === profile.id || p.email === profile.email
+        );
+
+        const score = found ? found.total_score : 0;
+
+        setProfile((prev) => ({ ...prev, total_score: score }));
+      })
+      .catch((e) => console.error("Error obteniendo leaderboard:", e));
+  }, [profile?.id, gamePlayer?.numeric_id]);
 
   const loadProfile = async () => {
-    try {
-      console.log('🔄 Cargando perfil...');
-      
-      // 1. Cargar perfil básico
-      const profileData = await ApiService.getProfile();
-      console.log('✅ Perfil cargado:', profileData);
+  try {
+    console.log("🔄 Cargando perfil...");
+    const profileData = await ApiService.getProfile(externalUserId || null);
 
-      // 2. ✅ SOLUCIÓN: Usar el leaderboard para obtener el score actualizado
-      let currentScore = 0;
-      try {
-        console.log('🏆 Buscando score en leaderboard...');
-        const leaderboardData = await ApiService.getLeaderboard(1, 100); // Pedir muchos resultados
-        console.log('📊 Leaderboard completo:', leaderboardData);
-        
-        if (leaderboardData?.leaderboard && Array.isArray(leaderboardData.leaderboard)) {
-          // Buscar al usuario actual en el leaderboard
-          const currentUserInLeaderboard = leaderboardData.leaderboard.find(player => 
-            player.id === user?.id || 
-            player.email === user?.email || 
-            player.username === user?.username
-          );
-          
-          if (currentUserInLeaderboard) {
-            currentScore = currentUserInLeaderboard.total_score || 0;
-            console.log('🎯 Score encontrado en leaderboard:', currentScore);
-          } else {
-            console.log('❌ Usuario no encontrado en leaderboard, usando score de gamePlayer');
-            currentScore = gamePlayer?.total_score || 0;
-          }
-        } else {
-          console.log('⚠️ Leaderboard vacío o inválido, usando score de gamePlayer');
-          currentScore = gamePlayer?.total_score || 0;
-        }
-      } catch (leaderboardError) {
-        console.log('❌ Error cargando leaderboard:', leaderboardError);
-        currentScore = gamePlayer?.total_score || 0;
-      }
+    const fullName = (profileData.usuario.full_name || "").trim();
+    const parts = fullName.split(" ");
 
-      console.log('🎯 Score final a usar:', currentScore);
+    setProfile({
+      id: profileData.usuario.id,
+      username: profileData.usuario.username,
+      email: profileData.usuario.email,
+      nombre: parts[0] || "",
+      apellido: parts.slice(1).join(" ") || "",
+      fecha_registro: profileData.usuario.fecha_registro || "N/A",
+      total_score: 0, // → se actualizará después automáticamente
+    });
 
-      // Procesar datos del perfil
-      const fullName = profileData.usuario.full_name || "";
-      const nameParts = fullName.split(" ");
-      const nombre = nameParts[0] || "";
-      const apellido = nameParts.slice(1).join(" ") || "";
+    setEditForm({
+      nombre: parts[0] || "",
+      apellido: parts.slice(1).join(" ") || "",
+      email: profileData.usuario.email || ""
+    });
 
-      setProfile({
-        id: profileData.usuario.id,
-        username: profileData.usuario.username,
-        email: profileData.usuario.email,
-        nombre: nombre,
-        apellido: apellido,
-        fecha_registro: profileData.usuario.fecha_registro || "N/A",
-        total_score: currentScore // ✅ Score actualizado
-      });
+  } catch (error) {
+    console.error("Error loading profile:", error);
+    showNotification("Error al cargar el perfil", "error");
+  } finally {
+    setLoading(false);
+  }
+};
 
-      setEditForm({
-        nombre: nombre,
-        apellido: apellido,
-        email: profileData.usuario.email || ""
-      });
-
-    } catch (error) {
-      console.error("Error loading profile:", error);
-      const errorMessage = error.data?.message || error.message || 'Error al cargar el perfil';
-      showNotification(errorMessage, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleEditProfile = async () => {
     if (!editForm.nombre.trim() || !editForm.apellido.trim() || !editForm.email.trim()) {
@@ -108,12 +100,14 @@ const Profile = () => {
 
     setUpdatingProfile(true);
     try {
-      const result = await ApiService.editProfile(editForm);
+      const result = await ApiService.editProfile(profile.id, editForm, externalUserId);
+
+
       
       if (result.success) {
         showNotification('¡Perfil actualizado exitosamente!', 'success');
         setShowEditModal(false);
-        loadProfile(); // Recargar datos
+        loadProfile();
       }
     } catch (error) {
       const errorMessage = error.data?.message || error.message || 'Error al actualizar el perfil';
@@ -124,15 +118,13 @@ const Profile = () => {
   };
 
   const handleChangePassword = async () => {
-    if (newPassword.length < 8) {
-      showNotification('La contraseña debe tener al menos 8 caracteres', 'error');
-      return;
-    }
 
     setChangingPassword(true);
     try {
-      const result = await ApiService.changePassword(newPassword);
-      
+      const result = await ApiService.changePassword(profile.id, newPassword, externalUserId);
+
+
+
       if (result.success) {
         showNotification('¡Contraseña cambiada exitosamente!', 'success');
         setShowPasswordModal(false);
@@ -151,7 +143,6 @@ const Profile = () => {
     showNotification('Sesión cerrada exitosamente', 'success');
   };
 
-  // --- Loading Screen ---
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center">
@@ -167,11 +158,8 @@ const Profile = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">👤 Mi Perfil</h1>
-          <p className="text-xl text-gray-600">Gestión de tu cuenta personal</p>
-          
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">👤 Perfil de Usuario</h1>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
