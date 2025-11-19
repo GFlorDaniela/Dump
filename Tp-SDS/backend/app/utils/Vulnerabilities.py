@@ -70,5 +70,45 @@ VULNERABILITIES = [
         'points': 250,
         'flag_hash': '2a653b5d4685f87939edfae035964fcf',
         'solution_hint': "Testea respuesta con: ' AND 1=1 -- vs ' AND 1=2 --"
+    },
+     # ============================================================
+    # 🔥 NUEVAS VULNERABILIDADES IDOR AVANZADAS (ENFOCADAS EN RECETAS)
+    # ============================================================
+
+    {
+        'id': 8,
+        'name': 'IDOR - Bloqueo de Recetas Ajenas',
+        'description': 'Bloquea recetas de otros usuarios estableciendo contraseñas sin autorización.',
+        'difficulty': 'Medio',
+        'points': 200,
+        'flag_hash': 'a7d8f9e0b1c2d3e4f5a6b7c8d9e0f1a2',
+        'solution_hint': 'Encuentra el endpoint para bloquear recetas y prueba con IDs de otros usuarios'
+    },
+    {
+        'id': 9,
+        'name': 'IDOR - Acceso a Recetas Privadas',
+        'description': 'Accede a recetas marcadas como privadas de otros usuarios mediante ID manipulation.',
+        'difficulty': 'Medio',
+        'points': 180,
+        'flag_hash': 'c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a',
+        'solution_hint': 'Las recetas privadas también tienen IDs secuenciales - prueba enumeración'
+    },
+    {
+        'id': 10,
+        'name': 'IDOR - Cambio de Contraseña de Usuario',
+        'description': 'Cambia la contraseña de otros usuarios sin autorización.',
+        'difficulty': 'Alto',
+        'points': 300,
+        'flag_hash': 'd7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b',
+        'solution_hint': 'Busca endpoints de cambio de contraseña y prueba con IDs de otros usuarios'
+    },
+    {
+        'id': 11,
+        'name': 'IDOR - Eliminación de Recetas Ajenas',
+        'description': 'Elimina recetas de otros usuarios sin autorización.',
+        'difficulty': 'Alto',
+        'points': 280,
+        'flag_hash': 'e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c',
+        'solution_hint': 'Busca endpoints DELETE de recetas y prueba con IDs que no te pertenecen'
     }
 ]

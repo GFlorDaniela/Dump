@@ -354,81 +354,276 @@ def api_game_my_flags():
         if conn:
             conn.close()
             
-# ================================
-#     VULNERABILIDADES COMPLETAS
-# ================================
-# Estas van vulnerables y sin prefijos
+# En tu archivo routes/game.py - CORREGIR los endpoints IDOR
 
-@game_bp.route('/sql-injection-login', methods=['POST'])
+@game_bp.route('/idor/bloquear-receta', methods=['POST'])
 @requires_auth
-def sql_injection_login():
-    data = request.json
-    user = data.get('user')
-    password = data.get('password')
-
-    conn = get_users_db_connection()
-    c = conn.cursor()
-
-    # intencionalmente vulnerable
-    query = f"SELECT id, nickname FROM jugadores WHERE nickname = '{user}' AND password = '{password}'"
-    c.execute(query)
-    row = c.fetchone()
-    conn.close()
-
-    if row:
-        return {'success': True, 'message': 'Login exitoso (vulnerable)', 'user': row[1]}
-    else:
-        return {'success': False, 'message': 'Credenciales incorrectas'}
-
-
-@game_bp.route('/idor-test', methods=['GET'])
-@requires_auth
-def idor_vulnerability():
-    user_id = request.args.get('id')  # vulnerable
-    conn = get_users_db_connection()
-    c = conn.cursor()
-
-    c.execute("SELECT id, nickname, email FROM jugadores WHERE id = ?", (user_id,))
-    row = c.fetchone()
-    conn.close()
-
-    if not row:
-        return {'success': False, 'message': 'Usuario no encontrado'}
-
-    return {
-        'success': True,
-        'user': {
-            'id': row[0],
-            'nickname': row[1],
-            'email': row[2]
-        }
-    }
-
-
-@game_bp.route('/information-disclosure', methods=['GET'])
-@requires_auth
-def information_disclosure():
-    return {
-        'success': True,
-        'system_info': {
-            'debug': True,
-            'paths': {
-                'user_db': '../data/user.db',
-                'game_db': '../data/game.db'
-            },
-            'secrets': {
-                'admin_key': 'HARDCODED_ADMIN_KEY_12345'
+def idor_bloquear_receta():
+    """Endpoint VULNERABLE - Bloquear recetas de otros usuarios (IDOR)"""
+    try:
+        data = request.get_json()
+        receta_id = data.get('receta_id')
+        password = data.get('password')
+        
+        if not receta_id or not password:
+            return jsonify({'success': False, 'message': 'receta_id y password requeridos'}), 400
+        
+        # ✅ CORREGIDO: Usar game_db_connection para recetas
+        conn = get_game_db_connection()
+        c = conn.cursor()
+        
+        # Primero obtener info de la receta para verificar ownership
+        c.execute("SELECT id, nombre, user_id FROM recetas WHERE id = ?", (receta_id,))
+        receta = c.fetchone()
+        
+        if not receta:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Receta no encontrada'}), 404
+        
+        # VULNERABLE: No verifica si la receta pertenece al usuario actual
+        c.execute("""
+            UPDATE recetas 
+            SET bloqueada = 1, password_bloqueo = ?
+            WHERE id = ?
+        """, (password, receta_id))
+        
+        conn.commit()
+        conn.close()
+        
+        response = {
+            'success': True, 
+            'message': f'Receta "{receta[1]}" bloqueada exitosamente con contraseña',
+            'receta_bloqueada': {
+                'id': receta_id,
+                'nombre': receta[1],
+                'user_id_propietario': receta[2]
             }
         }
-    }
+        
+        # ✅ FLAG para vulnerabilidad IDOR 8
+        current_user_id = session.get('user', {}).get('numeric_id')
+        if receta[2] != current_user_id:  # Si no es la receta del usuario actual
+            response['flag'] = 'a7d8f9e0b1c2d3e4f5a6b7c8d9e0f1a2'
+        
+        return jsonify(response)
+    
+    except Exception as e:
+        print(f"❌ Error en idor_bloquear_receta: {str(e)}")
+        return jsonify({'success': False, 'message': f'Error interno: {str(e)}'}), 500
 
-
-@game_bp.route('/weak-authentication', methods=['POST'])
+@game_bp.route('/idor/recetas-privadas', methods=['GET'])
 @requires_auth
-def weak_authentication():
-    data = request.json
-    token = data.get('token')
+def idor_recetas_privadas():
+    """Endpoint VULNERABLE - Acceder a recetas privadas (IDOR)"""
+    try:
+        receta_id = request.args.get('receta_id')
+        
+        if not receta_id:
+            return jsonify({'success': False, 'message': 'receta_id requerido'}), 400
+        
+        # ✅ CORREGIDO: Usar game_db_connection para recetas
+        conn = get_game_db_connection()
+        c = conn.cursor()
+        
+        # VULNERABLE: No verifica permisos de acceso a recetas privadas
+        c.execute("""
+            SELECT id, nombre, ingredientes, instrucciones, user_id, bloqueada
+            FROM recetas 
+            WHERE id = ?
+        """, (receta_id,))
+        
+        receta = c.fetchone()
+        conn.close()
+        
+        if not receta:
+            return jsonify({'success': False, 'message': 'Receta no encontrada'}), 404
+        
+        receta_data = {
+            'id': receta[0],
+            'nombre': receta[1],
+            'ingredientes': receta[2],
+            'instrucciones': receta[3],
+            'user_id': receta[4],
+            'bloqueada': bool(receta[5])
+        }
+        
+        response = {
+            'success': True,
+            'receta': receta_data
+        }
+        
+        # ✅ FLAG para vulnerabilidad IDOR 9
+        current_user_id = session.get('user', {}).get('numeric_id')
+        if receta[5] == 1 and receta[4] != current_user_id:  # Es privada y no es del usuario actual
+            response['flag'] = 'c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a'
+        
+        return jsonify(response)
+    
+    except Exception as e:
+        print(f"❌ Error en idor_recetas_privadas: {str(e)}")
+        return jsonify({'success': False, 'message': f'Error interno: {str(e)}'}), 500
 
-    if token == "letmein":
-        return {'success': True, 'message': 'Acceso débil concedido'}
-    return {'success': False, 'message': 'Token inválido'}
+@game_bp.route('/idor/cambiar-password-usuario', methods=['POST'])
+@requires_auth
+def idor_cambiar_password_usuario():
+    """Endpoint VULNERABLE - Cambiar contraseña de otros usuarios (IDOR)"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        nueva_password = data.get('nueva_password')
+        
+        if not user_id or not nueva_password:
+            return jsonify({'success': False, 'message': 'user_id y nueva_password requeridos'}), 400
+        
+        # Validar fortaleza básica
+        if len(nueva_password) < 4:
+            return jsonify({'success': False, 'message': 'La contraseña debe tener al menos 4 caracteres'}), 400
+        
+        # ✅ CORREGIDO: Usar users_db_connection para jugadores
+        conn = get_users_db_connection()
+        c = conn.cursor()
+        
+        # Verificar que el usuario existe
+        c.execute("SELECT id, nombre FROM jugadores WHERE id = ?", (user_id,))
+        usuario = c.fetchone()
+        
+        if not usuario:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Usuario no encontrado'}), 404
+        
+        # VULNERABLE: No verifica que el user_id sea el mismo que el usuario autenticado
+        c.execute("UPDATE jugadores SET password_hash = ? WHERE id = ?", (nueva_password, user_id))
+        
+        conn.commit()
+        conn.close()
+        
+        response = {
+            'success': True,
+            'message': f'Contraseña del usuario {usuario[1]} cambiada exitosamente',
+            'usuario_afectado': {
+                'id': user_id,
+                'nombre': usuario[1]
+            }
+        }
+        
+        # ✅ FLAG para vulnerabilidad IDOR 10
+        current_user_id = session.get('user', {}).get('numeric_id')
+        if str(user_id) != str(current_user_id):  # Si no es el usuario actual
+            response['flag'] = 'd7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b'
+        
+        return jsonify(response)
+    
+    except Exception as e:
+        print(f"❌ Error en idor_cambiar_password_usuario: {str(e)}")
+        return jsonify({'success': False, 'message': f'Error interno: {str(e)}'}), 500
+
+@game_bp.route('/idor/eliminar-receta', methods=['DELETE'])
+@requires_auth
+def idor_eliminar_receta():
+    """Endpoint VULNERABLE - Eliminar recetas de otros usuarios (IDOR)"""
+    try:
+        receta_id = request.args.get('receta_id')
+        
+        if not receta_id:
+            return jsonify({'success': False, 'message': 'receta_id requerido'}), 400
+        
+        # ✅ CORREGIDO: Usar game_db_connection para recetas
+        conn = get_game_db_connection()
+        c = conn.cursor()
+        
+        # Primero obtener info de la receta
+        c.execute("SELECT id, nombre, user_id FROM recetas WHERE id = ?", (receta_id,))
+        receta = c.fetchone()
+        
+        if not receta:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Receta no encontrada'}), 404
+        
+        # VULNERABLE: No verifica ownership antes de eliminar
+        c.execute("DELETE FROM recetas WHERE id = ?", (receta_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        response = {
+            'success': True,
+            'message': f'Receta "{receta[1]}" eliminada permanentemente',
+            'receta_eliminada': {
+                'id': receta_id,
+                'nombre': receta[1],
+                'user_id_propietario': receta[2]
+            }
+        }
+        
+        # ✅ FLAG para vulnerabilidad IDOR 11
+        current_user_id = session.get('user', {}).get('numeric_id')
+        if receta[2] != current_user_id:  # Si no es la receta del usuario actual
+            response['flag'] = 'e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c'
+        
+        return jsonify(response)
+    
+    except Exception as e:
+        print(f"❌ Error en idor_eliminar_receta: {str(e)}")
+        return jsonify({'success': False, 'message': f'Error interno: {str(e)}'}), 500
+
+@game_bp.route('/idor/explorar-recursos', methods=['GET'])
+@requires_auth
+def idor_explorar_recursos():
+    """Endpoint para explorar recursos disponibles (ayuda para encontrar IDs)"""
+    try:
+        # ✅ CORREGIDO: Usar game_db_connection para recetas y users_db_connection para jugadores
+        game_conn = get_game_db_connection()
+        users_conn = get_users_db_connection()
+        
+        game_c = game_conn.cursor()
+        users_c = users_conn.cursor()
+        
+        # Obtener algunas recetas públicas para empezar (de game.db)
+        game_c.execute("""
+            SELECT id, nombre, user_id, bloqueada  
+            FROM recetas 
+            WHERE bloqueada = 0 
+            ORDER BY id 
+            LIMIT 15
+        """)
+        recetas = game_c.fetchall()
+        
+        # Obtener algunos usuarios (solo IDs y nombres) (de users.db)
+        users_c.execute("""
+            SELECT id, nombre, apellido 
+            FROM jugadores 
+            WHERE role = 'jugador'
+            ORDER BY id 
+            LIMIT 10
+        """)
+        usuarios = users_c.fetchall()
+        
+        game_conn.close()
+        users_conn.close()
+        
+        return jsonify({
+            'success': True,
+            'recetas_publicas': [
+                {
+                    'id': r[0], 
+                    'nombre': r[1], 
+                    'user_id': r[2], 
+                    'bloqueada': bool(r[3]),
+                    'tipo': 'receta_publica'
+                }
+                for r in recetas
+            ],
+            'usuarios': [
+                {
+                    'id': u[0], 
+                    'nombre_completo': f"{u[1]} {u[2]}",
+                    'tipo': 'usuario'
+                }
+                for u in usuarios
+            ],
+            'hint': 'Usa estos IDs como punto de partida para explorar otros recursos. Prueba IDs secuenciales para encontrar recursos de otros usuarios.'
+        })
+    
+    except Exception as e:
+        print(f"❌ Error en idor_explorar_recursos: {str(e)}")
+        return jsonify({'success': False, 'message': f'Error interno: {str(e)}'}), 500
