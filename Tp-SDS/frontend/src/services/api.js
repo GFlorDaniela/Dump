@@ -163,6 +163,38 @@ changePassword(userId, newPassword) {
 getSystemLogs() {
   return api.get('/logs');
 }
+
+// En ApiService.js - los métodos quedarían así:
+bloquearRecetaIDOR(recetaId, password) {
+  return api.post('/game/idor/bloquear-receta', {
+    receta_id: recetaId,
+    password: password
+  });
+}
+
+accederRecetaPrivadaIDOR(recetaId) {
+  return api.get('/game/idor/recetas-privadas', {
+    params: { receta_id: recetaId }
+  });
+}
+
+cambiarPasswordUsuarioIDOR(userId, nuevaPassword) {
+  return api.post('/game/idor/cambiar-password-usuario', {
+    user_id: userId,
+    nueva_password: nuevaPassword
+  });
+}
+
+eliminarRecetaIDOR(recetaId) {
+  return api.delete('/game/idor/eliminar-receta', {
+    params: { receta_id: recetaId }
+  });
+}
+
+explorarRecursosIDOR() {
+  return api.get('/game/idor/explorar-recursos');
+}
 }
 
 export default new ApiService();
+
