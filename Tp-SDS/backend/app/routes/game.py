@@ -776,3 +776,383 @@ def weak_authentication():
         })
     finally:
         conn.close()
+
+
+# ============================
+#   SQL INJECTION VULNERABILITIES
+# ============================
+
+@game_bp.route('/sql-injection-login', methods=['POST'])
+def sql_injection_login():
+    """Endpoint VULNERABLE - SQL Injection en login (ID: 4)"""
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return jsonify({'success': False, 'message': 'Usuario y contraseña requeridos'})
+
+        # ✅ CORREGIDO: Usar game_db_connection para la BD vulnerable
+        conn = get_game_db_connection()
+        c = conn.cursor()
+
+        # 🚨 VULNERABILIDAD INTENCIONAL - SQL Injection
+        query = f"SELECT id, username, role, email FROM users WHERE username = '{username}' AND password = '{password}'"
+        
+        print(f"🔍 [SQLi Login] Query ejecutada: {query}")
+        
+        try:
+            c.execute(query)
+            user = c.fetchone()
+        except sqlite3.Error as e:
+            conn.close()
+            return jsonify({
+                'success': False, 
+                'message': f'Error en consulta SQL: {str(e)}',
+                'debug_query': query
+            })
+
+        conn.close()
+
+        if user:
+            response = {
+                'success': True,
+                'message': f'¡Login exitoso! Usuario: {user[1]}',
+                'user': {
+                    'id': user[0],
+                    'username': user[1],
+                    'role': user[2],
+                    'email': user[3]
+                }
+            }
+            
+            # ✅ FLAG para SQL Injection - Login Bypass (ID: 4)
+            # Detectar si se usó SQL Injection para bypass
+            if "' OR '1'='1" in username or "' OR '1'='1" in password or "1=1" in username or "1=1" in password:
+                response['flag'] = 'SQLI_LOGIN_FLAG_4a8b9c0d'
+                response['vulnerability_detected'] = 'SQL Injection - Login Bypass'
+            
+            return jsonify(response)
+        else:
+            return jsonify({
+                'success': False, 
+                'message': 'Credenciales incorrectas',
+                'debug': 'Consulta ejecutada pero sin resultados'
+            })
+
+    except Exception as e:
+        print(f"❌ Error en sql-injection-login: {str(e)}")
+        return jsonify({'success': False, 'message': f'Error interno: {str(e)}'})
+
+@game_bp.route('/sql-injection-search', methods=['POST'])
+def sql_injection_search():
+    """Endpoint VULNERABLE - SQL Injection en búsqueda (IDs: 5,6,7) - MEJORADO"""
+    try:
+        data = request.get_json()
+        search_term = data.get('search_term', '')
+        category = data.get('category', '')
+
+        conn = get_game_db_connection()
+        c = conn.cursor()
+
+        response_data = {
+            'success': True,
+            'search_term': search_term,
+            'recetas': [],
+            'union_data': [],
+            'vulnerabilities_detected': [],
+            'debug_info': {}
+        }
+
+        # 🚨 VULNERABILIDAD INTENCIONAL - Concatenación directa en SQL
+        base_query = "SELECT id, nombre, ingredientes, instrucciones, bloqueada, password_bloqueo, categoria, user_id FROM recetas"
+        
+        where_conditions = []
+        if search_term:
+            where_conditions.append(f"nombre LIKE '%{search_term}%' OR ingredientes LIKE '%{search_term}%'")
+        if category:
+            where_conditions.append(f"categoria = '{category}'")
+        
+        if where_conditions:
+            query = base_query + " WHERE " + " AND ".join(where_conditions)
+        else:
+            query = base_query
+
+        query += " ORDER BY id"
+
+        response_data['debug_info']['original_query'] = query
+
+        try:
+            c.execute(query)
+            recetas = c.fetchall()
+            
+            # Procesar recetas normales
+            for receta in recetas:
+                receta_data = {
+                    'id': receta[0],
+                    'nombre': receta[1],
+                    'ingredientes': receta[2],
+                    'instrucciones': receta[3],
+                    'bloqueada': bool(receta[4]),
+                    'password_bloqueo': receta[5],
+                    'categoria': receta[6],
+                    'user_id': receta[7],
+                    'type': 'receta'
+                }
+                response_data['recetas'].append(receta_data)
+
+        except sqlite3.Error as e:
+            error_msg = str(e)
+            response_data.update({
+                'success': False,
+                'message': 'Error en la búsqueda',
+                'sql_error': error_msg
+            })
+            
+            # ✅ Detectar Blind Boolean SQL Injection (ID: 7)
+            if "' AND 1=1" in search_term or "' AND 1=2" in search_term:
+                response_data['vulnerabilities_detected'].append('SQL Injection - Blind Boolean')
+                response_data['flag_blind'] = 'SQLI_BLIND_FLAG_7e8f9a0b'
+            
+            conn.close()
+            return jsonify(response_data)
+
+        # ✅ MANEJO ESPECIAL PARA UNION QUERIES
+        if 'UNION' in search_term.upper() and 'SELECT' in search_term.upper():
+            response_data['vulnerabilities_detected'].append('SQL Injection - UNION Data Extract')
+            response_data['flag_union'] = 'SQLI_UNION_FLAG_6d7e8f9a'
+            
+            try:
+                # Ejecutar la consulta UNION completa
+                union_query = search_term
+                if not union_query.upper().startswith('SELECT'):
+                    # Si es una inyección UNION en un campo de búsqueda
+                    union_query = f"SELECT id, nombre, ingredientes, instrucciones, bloqueada, password_bloqueo, categoria, user_id FROM recetas WHERE 1=0 UNION {search_term}"
+                
+                print(f"🔍 [UNION Query] Ejecutando: {union_query}")
+                c.execute(union_query)
+                union_results = c.fetchall()
+                union_columns = [description[0] for description in c.description] if c.description else []
+                
+                response_data['debug_info']['union_query'] = union_query
+                response_data['debug_info']['union_columns'] = union_columns
+                
+                # Procesar resultados UNION
+                for row in union_results:
+                    row_data = {
+                        'type': 'union_result',
+                        'source': 'UNION query'
+                    }
+                    # Agregar datos dinámicamente basado en las columnas
+                    for i, value in enumerate(row):
+                        col_name = union_columns[i] if i < len(union_columns) else f'column_{i}'
+                        row_data[col_name] = value
+                    response_data['union_data'].append(row_data)
+                    
+            except sqlite3.Error as union_error:
+                response_data['union_error'] = str(union_error)
+                response_data['debug_info']['union_error'] = str(union_error)
+
+        # ✅ SQL Injection - Recetas Ocultas (ID: 5)
+        if ("' OR 1=1" in search_term or "%' OR" in search_term) and len(recetas) > 3:
+            response_data['vulnerabilities_detected'].append('SQL Injection - Recetas Ocultas')
+            response_data['flag_ocultas'] = 'SQLI_OCULTAS_FLAG_5c6d7e8f'
+            response_data['message'] = f'¡Encontraste {len(recetas)} recetas (incluyendo ocultas)!'
+
+        conn.close()
+        return jsonify(response_data)
+
+    except Exception as e:
+        print(f"❌ Error en sql-injection-search: {str(e)}")
+        return jsonify({
+            'success': False, 
+            'message': f'Error interno: {str(e)}'
+        })
+
+@game_bp.route('/sql-injection-advanced', methods=['POST'])
+def sql_injection_advanced():
+    """Endpoint para técnicas avanzadas de SQL Injection"""
+    try:
+        data = request.get_json()
+        custom_query = data.get('query', '')
+        
+        if not custom_query:
+            return jsonify({'success': False, 'message': 'Query requerida'})
+
+        # ✅ CORREGIDO: Usar game_db_connection
+        conn = get_game_db_connection()
+        c = conn.cursor()
+
+        print(f"🔍 [SQLi Advanced] Query personalizada: {custom_query}")
+
+        response_data = {
+            'success': True,
+            'query_executed': custom_query,
+            'results': [],
+            'vulnerabilities_detected': []
+        }
+
+        try:
+            c.execute(custom_query)
+            
+            # Intentar obtener resultados
+            try:
+                rows = c.fetchall()
+                
+                # Si es una consulta SELECT, procesar resultados
+                if custom_query.upper().strip().startswith('SELECT'):
+                    column_names = [description[0] for description in c.description]
+                    
+                    for row in rows:
+                        row_data = {}
+                        for i, value in enumerate(row):
+                            row_data[column_names[i]] = value
+                        response_data['results'].append(row_data)
+                    
+                    response_data['columns'] = column_names
+                    response_data['row_count'] = len(rows)
+                
+                # Si es una consulta de modificación (INSERT/UPDATE/DELETE)
+                else:
+                    response_data['affected_rows'] = c.rowcount
+                    conn.commit()
+                    
+            except sqlite3.ProgrammingError:
+                # Para consultas que no devuelven resultados
+                response_data['message'] = 'Consulta ejecutada (sin resultados para mostrar)'
+                conn.commit()
+
+        except sqlite3.Error as e:
+            response_data.update({
+                'success': False,
+                'message': 'Error en consulta SQL',
+                'sql_error': str(e)
+            })
+
+        conn.close()
+
+        # ✅ Detectar técnicas avanzadas
+        if 'UNION' in custom_query.upper():
+            response_data['vulnerabilities_detected'].append('UNION-based SQL Injection')
+        
+        if 'SLEEP(' in custom_query.upper() or 'SLEEP (' in custom_query.upper():
+            response_data['vulnerabilities_detected'].append('Time-based Blind SQL Injection')
+            
+        if 'BENCHMARK(' in custom_query.upper():
+            response_data['vulnerabilities_detected'].append('Benchmark-based SQL Injection')
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        print(f"❌ Error en sql-injection-advanced: {str(e)}")
+        return jsonify({
+            'success': False, 
+            'message': f'Error interno: {str(e)}'
+        })
+
+@game_bp.route('/sql-injection-test', methods=['GET'])
+def sql_injection_test():
+    """Endpoint de prueba para verificar la base de datos"""
+    try:
+        conn = get_game_db_connection()
+        c = conn.cursor()
+        
+        # Obtener información de la base de datos
+        c.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = c.fetchall()
+        
+        table_info = {}
+        for table in tables:
+            table_name = table[0]
+            c.execute(f"PRAGMA table_info({table_name})")
+            columns = c.fetchall()
+            table_info[table_name] = [
+                {'name': col[1], 'type': col[2], 'pk': bool(col[5])}
+                for col in columns
+            ]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'database': 'game.db',
+            'tables': [table[0] for table in tables],
+            'schema': table_info,
+            'hint': 'Usa esta información para construir tus inyecciones SQL'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        })
+    
+
+@game_bp.route('/sql-injection-database-info', methods=['GET'])   
+def sql_injection_database_info():
+    """Endpoint para mostrar la estructura COMPLETA de la base de datos en tiempo real"""
+    try:
+        conn = get_game_db_connection()
+        c = conn.cursor()
+        
+        # 1. Obtener todas las tablas
+        c.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [table[0] for table in c.fetchall()]
+        
+        database_info = {
+            'database_name': 'game.db',
+            'tables': {},
+            'total_tables': len(tables),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # 2. Para cada tabla, obtener estructura Y datos
+        for table_name in tables:
+            # Obtener estructura de la tabla
+            c.execute(f"PRAGMA table_info({table_name})")
+            columns = c.fetchall()
+            
+            # Obtener primeros 10 registros de cada tabla
+            c.execute(f"SELECT * FROM {table_name} LIMIT 10")
+            sample_data = c.fetchall()
+            column_names = [description[0] for description in c.description] if c.description else []
+            
+            # Obtener conteo total
+            c.execute(f"SELECT COUNT(*) FROM {table_name}")
+            total_records = c.fetchone()[0]
+            
+            database_info['tables'][table_name] = {
+                'structure': [
+                    {
+                        'cid': col[0],
+                        'name': col[1],
+                        'type': col[2],
+                        'notnull': bool(col[3]),
+                        'default_value': col[4],
+                        'pk': bool(col[5])
+                    }
+                    for col in columns
+                ],
+                'sample_data': [
+                    dict(zip(column_names, row)) if column_names else {}
+                    for row in sample_data
+                ],
+                'total_records': total_records,
+                'column_names': column_names
+            }
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'database_info': database_info,
+            'message': 'Estructura de la base de datos cargada en tiempo real'
+        })
+        
+    except Exception as e:
+        print(f"❌ Error en sql-injection-database-info: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        })

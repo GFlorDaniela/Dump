@@ -121,8 +121,20 @@ class ApiService {
     return api.post('/game/sql-injection-login', credentials);
   }
 
-  testSQLInjectionSearch(query) {
-    return api.post('/buscar', { busqueda: query });
+  testSQLInjectionSearch(searchData) {
+    return api.post('/game/sql-injection-search', searchData);
+  }
+
+  testSQLInjectionAdvanced(customQuery) {
+    return api.post('/game/sql-injection-advanced', { query: customQuery });
+  }
+
+  testSQLInjectionDatabase() {
+    return api.get('/game/sql-injection-test');
+  }
+
+  getDatabaseInfo() {
+    return api.get('/game/sql-injection-database-info');
   }
 
   testInformationDisclosure() {

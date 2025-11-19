@@ -13,6 +13,7 @@ const SQLInjectionLab = () => {
   const [activeVulnerability, setActiveVulnerability] = useState(null);
   const [achievements, setAchievements] = useState([]);
   const [showHints, setShowHints] = useState(false);
+  const [capturedTables, setCapturedTables] = useState([]);
 
   const { gamePlayer, flags, submitFlag, refreshGameState } = useGame();
   const { showNotification } = useNotification();
@@ -52,18 +53,81 @@ const SQLInjectionLab = () => {
     }
   }, [flags, vulnerabilityInfo]);
 
+  // ✅ SIMULAR TABLAS DE BASE DE DATOS
+  const simulateDatabaseTables = (vulnerability) => {
+    const tables = [];
+    
+    switch(vulnerability.id) {
+      case 4: // Login Bypass
+        tables.push({
+          name: '🔐 USUARIOS_COMPROMETIDOS',
+          description: 'Tabla de usuarios - Credenciales expuestas',
+          data: [
+            { id: 1, username: 'admin', password: 'ChefObscuro123!', email: 'admin@recetas.com', role: 'admin' },
+            { id: 2, username: 'abuela', password: 'abuela123', email: 'abuela@recetas.com', role: 'user' },
+            { id: 3, username: 'chef_obscuro', password: 'DarkChef2024!', email: 'chef@obscuro.com', role: 'admin' }
+          ]
+        });
+        break;
+        
+      case 5: // Recetas Ocultas
+        tables.push({
+          name: '📋 RECETAS_EXPuestas',
+          description: 'Todas las recetas del sistema - Filtros bypasseados',
+          data: [
+            { id: 1, nombre: 'Sopa de Tomate Clásica', categoria: 'sopas', bloqueada: 'NO', user_id: 'G-0001' },
+            { id: 2, nombre: 'Torta de Chocolate Familiar', categoria: 'postres', bloqueada: 'NO', user_id: 'G-0001' },
+            { id: 3, nombre: 'RECETA SECRETA: Salsa Ancestral', categoria: 'salsas', bloqueada: 'SÍ', user_id: 'G-0001' },
+            { id: 4, nombre: 'Guiso de la Abuela', categoria: 'guisos', bloqueada: 'NO', user_id: 'G-0001' },
+            { id: 5, nombre: 'RECETA ULTRA SECRETA: Postre Familiar', categoria: 'postres', bloqueada: 'SÍ', user_id: 'G-0001' }
+          ]
+        });
+        break;
+        
+      case 6: // UNION Data Extract
+        tables.push({
+          name: '👥 DATOS_USUARIOS',
+          description: 'Información sensible de usuarios - Extraída via UNION',
+          data: [
+            { id: 'G-0001', username: 'abuela', password: 'abuela123', role: 'user', email: 'abuela@recetas.com' },
+            { id: 'G-0002', username: 'admin', password: 'ChefObscuro123!', role: 'admin', email: 'admin@recetas.com' },
+            { id: 'G-0003', username: 'chef_obscuro', password: 'DarkChef2024!', role: 'admin', email: 'chef@obscuro.com' },
+            { id: 'G-0004', username: 'juan_perez', password: 'password123', role: 'user', email: 'juan@recetas.com' }
+          ]
+        });
+        tables.push({
+          name: '🗄️ ESTRUCTURA_BD',
+          description: 'Metadatos de la base de datos',
+          data: [
+            { tabla: 'users', columnas: 'id, username, password, role, email', registros: 5 },
+            { tabla: 'recetas', columnas: 'id, nombre, ingredientes, instrucciones, bloqueada, password_bloqueo', registros: 5 },
+            { tabla: 'vulnerabilities', columnas: 'id, name, description, difficulty, points, flag_hash', registros: 10 }
+          ]
+        });
+        break;
+        
+      case 7: // Blind Boolean
+        tables.push({
+          name: '🎯 INFO_BLIND_SQL',
+          description: 'Información obtenida via Blind Boolean Injection',
+          data: [
+            { tecnica: 'Boolean-based Blind', payload_usado: searchTerm, resultado: 'Vulnerabilidad confirmada', detalles: 'Respuestas diferenciales detectadas' },
+            { tecnica: 'Database Version', resultado: 'SQLite 3.35.5', detalles: 'Extraído via time-based' },
+            { tecnica: 'Current User', resultado: 'admin', detalles: 'Usuario de la base de datos' }
+          ]
+        });
+        break;
+    }
+    
+    return tables;
+  };
+
   // ✅ VALIDAR LOGROS ESPECÍFICOS - CORREGIDO
   const validateAchievements = (payload, data, error) => {
     const newAchievements = [];
     const payloadLower = payload.toLowerCase();
     const results = data?.recetas || [];
     const resultsCount = results.length;
-
-    console.log('🔍 Validando logros con:', { 
-      resultsCount, 
-      payload: payloadLower,
-      data: data 
-    });
 
     // ✅ Logro: SQL Injection detectada por el backend
     if (data?.flag) {
@@ -82,36 +146,6 @@ const SQLInjectionLab = () => {
         title: '🔓 Múltiples Recetas Encontradas',
         description: `Encontraste ${resultsCount} recetas`,
         vulnerability: 'Recetas Ocultas'
-      });
-    }
-
-    // 🔍 Logro: Encontrar contraseñas
-    const leakedPasswords = results.filter(r => 
-      r?.password_bloqueo && r.password_bloqueo !== "null" && r.password_bloqueo !== ""
-    );
-    
-    if (leakedPasswords.length > 0) {
-      newAchievements.push({
-        type: 'warning',
-        title: '🔍 Contraseñas Expuestas',
-        description: `Encontraste ${leakedPasswords.length} contraseñas`,
-        vulnerability: 'Information Disclosure'
-      });
-    }
-
-    // 💾 Logro: Extraer datos sensibles
-    const hasSensitiveData = results.some(r => 
-      r?.nombre?.includes('admin') || 
-      r?.ingredientes?.includes('@') ||
-      r?.categoria?.includes('user')
-    );
-    
-    if (hasSensitiveData) {
-      newAchievements.push({
-        type: 'error',
-        title: '💾 Datos Sensibles Extraídos',
-        description: 'Accediste a información de otras tablas',
-        vulnerability: 'UNION Data Extract'
       });
     }
 
@@ -168,6 +202,7 @@ const SQLInjectionLab = () => {
       if (payloadLower.includes("union")) return vulnerabilityInfo.find(v => v.id === 6);
       if (payloadLower.includes("' or '1'='1")) return vulnerabilityInfo.find(v => v.id === 4);
       if (payloadLower.includes("' or 1=1")) return vulnerabilityInfo.find(v => v.id === 5);
+      if (payloadLower.includes("' and 1=1")) return vulnerabilityInfo.find(v => v.id === 7);
     }
     
     return null;
@@ -180,6 +215,7 @@ const SQLInjectionLab = () => {
     setLoading(true);
     setShowLeak(false);
     setActiveVulnerability(null);
+    setCapturedTables([]);
 
     try {
       console.log('🔍 Ejecutando búsqueda con:', searchTerm);
@@ -195,20 +231,12 @@ const SQLInjectionLab = () => {
       if (detectedVuln) {
         setActiveVulnerability(detectedVuln);
         console.log('🎯 Vulnerabilidad detectada:', detectedVuln.name);
+        
+        // ✅ MOSTRAR TABLAS SIMULADAS PARA ESTA VULNERABILIDAD
+        const tables = simulateDatabaseTables(detectedVuln);
+        setCapturedTables(tables);
+        setShowLeak(true);
       }
-
-      // ✅ CONDICIONES PARA MOSTRAR INFORMACIÓN Y CAPTURAR FLAGS
-      const hasLeakedPasswords = data.recetas?.some(r =>
-        r.password_bloqueo && r.password_bloqueo !== "null" && r.password_bloqueo !== ""
-      );
-
-      const hasSensitiveData = data.recetas?.some(r => 
-        r.nombre?.includes('admin') || r.ingredientes?.includes('@')
-      );
-
-      const hasDatabaseInfo = data.recetas?.some(r => 
-        r.nombre?.includes('sqlite_') || r.ingredientes?.includes('CREATE TABLE')
-      );
 
       // ✅ SI EL BACKEND DEVUELVE UNA FLAG, CAPTURARLA AUTOMÁTICAMENTE
       if (data.flag) {
@@ -219,7 +247,7 @@ const SQLInjectionLab = () => {
         try {
           const result = await submitFlag(data.flag);
           if (result.success) {
-            showNotification(`✅ ¡Flag capturada! +${result.data.points} puntos`, 'success');
+            showNotification(`✅ ¡Flag capturada! +${result.points} puntos`, 'success');
             await refreshGameState();
           }
         } catch (error) {
@@ -227,28 +255,25 @@ const SQLInjectionLab = () => {
         }
       }
 
-      if (hasLeakedPasswords || hasSensitiveData || hasDatabaseInfo || detectedVuln || data.flag) {
-        setShowLeak(true);
-        
-        if (hasDatabaseInfo) {
-          showNotification('🗃️ ¡Estructura de la base de datos expuesta!', 'warning');
-        }
-        
-        if (hasSensitiveData) {
-          showNotification('💾 ¡Datos sensibles extraídos de la BD!', 'error');
-        }
-
-        // ✅ INTENTAR CAPTURAR FLAGS
+      // ✅ INTENTAR CAPTURAR FLAGS DE LA VULNERABILIDAD DETECTADA
+      if (detectedVuln) {
         await attemptCaptureSQLFlags(detectedVuln, hasAchievements);
       }
 
     } catch (error) {
       console.error('Error en búsqueda:', error);
 
-      // ✅ DETECTAR VULNERABILIDAD POR ERRORES SQL
+      // ✅ DETECTAR VULNERABILIDAD POR ERRORES SQL (Para Blind Boolean)
       const detectedVuln = detectVulnerabilityType(searchTerm, null, error);
       if (detectedVuln) {
         setActiveVulnerability(detectedVuln);
+        
+        // ✅ MOSTRAR TABLAS SIMULADAS PARA BLIND BOOLEAN
+        const tables = simulateDatabaseTables(detectedVuln);
+        setCapturedTables(tables);
+        setShowLeak(true);
+        
+        await attemptCaptureSQLFlags(detectedVuln, false);
       }
 
       if (error.message && (
@@ -258,7 +283,6 @@ const SQLInjectionLab = () => {
         error.message.includes('UNION')
       )) {
         showNotification('💡 Error de base de datos - Vulnerabilidad detectada', 'warning');
-        await attemptCaptureSQLFlags(detectedVuln, false);
       } else {
         showNotification('Error en la búsqueda', 'error');
       }
@@ -305,13 +329,13 @@ const SQLInjectionLab = () => {
         if (result.success) {
           flagsCaptured++;
           showNotification(
-            `✅ ¡${vuln.name} explotada correctamente! +${result.data.points} puntos`,
+            `✅ ¡${vuln.name} explotada correctamente! +${result.points} puntos`,
             'success'
           );
           console.log(`🎉 Flag capturada: ${vuln.flag_hash}`);
         } else {
-          console.log(`❌ Error con flag ${vuln.flag_hash}:`, result.error);
-          showNotification(`⚠️ ${result.error}`, 'warning');
+          console.log(`❌ Error con flag ${vuln.flag_hash}:`, result.message);
+          showNotification(`⚠️ ${result.message}`, 'warning');
         }
       } catch (error) {
         console.log(`💥 Error enviando flag ${vuln.flag_hash}:`, error);
@@ -343,20 +367,64 @@ const SQLInjectionLab = () => {
     );
   };
 
-  const leakedPasswords = results.filter(r =>
-    r.password_bloqueo && r.password_bloqueo !== "null" && r.password_bloqueo !== ""
-  );
-
-  const sensitiveData = results.filter(r => 
-    r.nombre?.includes('admin') || r.ingredientes?.includes('@') || r.categoria?.includes('user')
-  );
-
-  const databaseInfo = results.filter(r => 
-    r.nombre?.includes('sqlite_') || r.ingredientes?.includes('CREATE TABLE')
-  );
-
   const sqlPoints = calculateSQLPoints();
   const sqlFlags = getSQLFlags();
+
+  // ✅ RENDERIZAR TABLAS CAPTURADAS
+  const renderCapturedTables = () => {
+    if (capturedTables.length === 0) return null;
+
+    return (
+      <div className="bg-white rounded-3xl shadow-2xl p-8 mb-8 border-4 border-green-500">
+        <div className="text-center mb-6">
+          <h3 className="text-3xl font-bold text-green-800 mb-2">
+            🗃️ ¡BASE DE DATOS COMPROMETIDA!
+          </h3>
+          <p className="text-green-600 text-lg">
+            <strong>Vulnerabilidad explotada:</strong> {activeVulnerability?.name}
+          </p>
+        </div>
+
+        {capturedTables.map((table, tableIndex) => (
+          <div key={tableIndex} className="mb-8 border-2 border-green-300 rounded-2xl p-6 bg-green-50">
+            <h4 className="text-xl font-bold text-green-800 mb-2">
+              {table.name}
+            </h4>
+            <p className="text-green-700 mb-4 text-sm">
+              {table.description}
+            </p>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-white rounded-lg overflow-hidden">
+                <thead className="bg-yellow-200">
+                  <tr>
+                    {table.data.length > 0 && 
+                      Object.keys(table.data[0]).map((key) => (
+                        <th key={key} className="px-4 py-3 text-left font-semibold text-gray-800">
+                          {key.toUpperCase()}
+                        </th>
+                      ))
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  {table.data.map((row, rowIndex) => (
+                    <tr key={rowIndex} className="border-t hover:bg-yellow-50">
+                      {Object.values(row).map((value, colIndex) => (
+                        <td key={colIndex} className="px-4 py-3 border text-gray-700">
+                          {String(value)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-red-50 to-orange-50 py-8 overflow-x-hidden">
@@ -542,66 +610,8 @@ const SQLInjectionLab = () => {
           </div>
         </div>
 
-        {/* LEAK Section - Información Extraída */}
-        {showLeak && (
-          <div className="bg-black rounded-3xl shadow-2xl p-6 mb-8">
-            <div className="text-yellow-400 text-xl font-bold mb-4 text-center">
-              🚨 ACCESO A BASE DE DATOS CONSEGUIDO
-            </div>
-            
-            {/* Información de la base de datos */}
-            {databaseInfo.length > 0 && (
-              <div className="mb-4">
-                <div className="text-blue-400 font-semibold mb-2">🗃️ Estructura de la Base de Datos:</div>
-                <div className="text-blue-300 font-mono space-y-2 text-sm">
-                  {databaseInfo.map((info, i) => (
-                    <div key={i} className="p-2 bg-gray-900 rounded">
-                      <div className="text-yellow-300">{info.nombre}</div>
-                      <div className="text-white">{info.ingredientes}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Contraseñas filtradas */}
-            {leakedPasswords.length > 0 && (
-              <div className="mb-4">
-                <div className="text-green-400 font-semibold mb-2">🔓 Contraseñas de Recetas Bloqueadas:</div>
-                <div className="text-green-300 font-mono space-y-2">
-                  {leakedPasswords.map((recipe, i) => (
-                    <div key={i} className="p-2 bg-gray-900 rounded">
-                      <span className="text-yellow-300">{recipe.nombre}:</span> 
-                      <span className="text-white ml-2">{recipe.password_bloqueo}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Datos sensibles */}
-            {sensitiveData.length > 0 && (
-              <div>
-                <div className="text-red-400 font-semibold mb-2">💾 Datos Sensibles Extraídos:</div>
-                <div className="text-red-300 font-mono space-y-2">
-                  {sensitiveData.map((data, i) => (
-                    <div key={i} className="p-2 bg-gray-900 rounded">
-                      <div className="text-yellow-300">{data.nombre}</div>
-                      <div className="text-white text-sm">{data.ingredientes}</div>
-                      <div className="text-gray-400 text-xs">Tabla: {data.categoria}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mt-4 p-3 bg-yellow-900 rounded-lg">
-              <p className="text-yellow-200 text-center">
-                💡 <strong>¡Has accedido a la base de datos!</strong> Continúa explotando para completar todos los objetivos
-              </p>
-            </div>
-          </div>
-        )}
+        {/* TABLAS DE BASE DE DATOS CAPTURADAS */}
+        {renderCapturedTables()}
 
         {/* Results */}
         {results.length > 0 && (
@@ -610,49 +620,21 @@ const SQLInjectionLab = () => {
               📊 Resultados de la Consulta SQL ({results.length} registros)
             </h3>
 
-            <div className="mb-4 flex space-x-4 text-sm">
-              <span className={`px-3 py-1 rounded-full ${results.length > 3 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                Total: {results.length}
-              </span>
-              <span className={`px-3 py-1 rounded-full ${leakedPasswords.length > 0 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
-                Contraseñas: {leakedPasswords.length}
-              </span>
-              <span className={`px-3 py-1 rounded-full ${sensitiveData.length > 0 ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}`}>
-                Sensibles: {sensitiveData.length}
-              </span>
-              <span className={`px-3 py-1 rounded-full ${databaseInfo.length > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                BD Info: {databaseInfo.length}
-              </span>
-            </div>
-
             <div className="space-y-4 max-h-96 overflow-y-auto">
               {results.map((recipe, index) => (
                 <div key={index} className={`border rounded-2xl p-4 transition-colors ${
                   recipe.bloqueada ? 'border-red-300 bg-red-50' : 'border-green-300 bg-green-50'
-                } ${databaseInfo.includes(recipe) ? 'border-blue-300 bg-blue-50' : ''}`}>
+                }`}>
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="font-bold text-gray-800 text-lg">
                       {recipe.bloqueada ? '🔒 ' : '🍳 '}
-                      {databaseInfo.includes(recipe) ? '🗃️ ' : ''}
                       {recipe.nombre}
                     </h4>
-                    <div className="flex space-x-2">
-                      {recipe.bloqueada && (
-                        <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
-                          BLOQUEADA
-                        </span>
-                      )}
-                      {databaseInfo.includes(recipe) && (
-                        <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                          METADATA BD
-                        </span>
-                      )}
-                      {(recipe.nombre?.includes('admin') || recipe.ingredientes?.includes('@')) && (
-                        <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
-                          SENSIBLE
-                        </span>
-                      )}
-                    </div>
+                    {recipe.bloqueada && (
+                      <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
+                        BLOQUEADA
+                      </span>
+                    )}
                   </div>
 
                   <p className="text-gray-600 mb-2">
@@ -664,15 +646,6 @@ const SQLInjectionLab = () => {
                     <span>Categoría: {recipe.categoria}</span>
                     <span>User: {recipe.user_id}</span>
                   </div>
-
-                  {/* Mostrar password si está disponible */}
-                  {recipe.password_bloqueo && recipe.password_bloqueo !== "null" && (
-                    <div className="mt-2 p-2 bg-yellow-50 rounded-lg border border-yellow-200">
-                      <span className="text-yellow-700 text-sm">
-                        <strong>🔓 Password expuesta:</strong> {recipe.password_bloqueo}
-                      </span>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>

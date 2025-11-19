@@ -21,16 +21,6 @@ const Footer = () => {
               Plataforma educativa de ciberseguridad diseñada para aprender 
               hacking ético en un entorno seguro y controlado.
             </p>
-            <div className="flex space-x-4 mt-4">
-              {['📘', '📷', '📺', '🐦'].map((icon, index) => (
-                <button
-                  key={index}
-                  className="w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center transition-colors duration-200"
-                >
-                  {icon}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Links */}
